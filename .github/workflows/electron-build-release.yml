@@ -1,0 +1,382 @@
+name: Electron build and release
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+      - '!build-*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  npm_config_audit: 'false'
+  npm_config_fund: 'false'
+  npm_config_update_notifier: 'false'
+
+jobs:
+  verify:
+    name: Verify source and Electron startup
+    if: github.event_name != 'push' || github.event.deleted != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Install Linux runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            xvfb \
+            libasound2t64 \
+            libgbm1 \
+            libgtk-3-0 \
+            libnss3
+
+      - name: Resolve and install dependencies
+        run: npm run ci:install
+
+      - name: Verify version tag matches package version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: npm run release:verify-tag -- "${GITHUB_REF_NAME}"
+
+      - name: Run deterministic checks, unit tests, and production build
+        run: npm run ci:verify
+
+      - name: Run Electron boot and accessibility smoke test
+        run: xvfb-run --auto-servernum npm run test:e2e
+
+      - name: Share the resolved dependency graph with native jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: resolved-npm-lock
+          path: |
+            package-lock.json
+            npm-shrinkwrap.json
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 1
+
+  package:
+    name: Package ${{ matrix.label }}
+    needs: verify
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux x64
+            runner: ubuntu-24.04
+            builder_platform: linux
+            artifact_platform: linux
+            arch: x64
+          - label: Windows x64
+            runner: windows-2025
+            builder_platform: win
+            artifact_platform: windows
+            arch: x64
+          - label: macOS Apple Silicon
+            runner: macos-15
+            builder_platform: mac
+            artifact_platform: macos
+            arch: arm64
+          - label: macOS Intel
+            runner: macos-15-intel
+            builder_platform: mac
+            artifact_platform: macos
+            arch: x64
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Download resolved npm lock
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: resolved-npm-lock
+          path: .
+          digest-mismatch: error
+
+      - name: Install Linux packaging libraries
+        if: matrix.builder_platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libopenjp2-tools
+
+      - name: Install the verified dependency graph
+        run: npm run ci:install
+
+      - name: Package unsigned continuous, non-version-tag, or pull-request build
+        if: ${{ github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        env:
+          KEEN_CI_VERSION_TAG: 'false'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: >-
+          npm run ci:package --
+          --platform ${{ matrix.builder_platform }}
+          --arch ${{ matrix.arch }}
+
+      - name: Package version-tag Linux build
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && matrix.builder_platform == 'linux'
+        shell: bash
+        env:
+          KEEN_CI_VERSION_TAG: 'true'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: >-
+          npm run ci:package --
+          --platform ${{ matrix.builder_platform }}
+          --arch ${{ matrix.arch }}
+
+      - name: Package version-tag Windows build
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && matrix.builder_platform == 'win'
+        shell: bash
+        env:
+          KEEN_CI_VERSION_TAG: 'true'
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: >-
+          npm run ci:package --
+          --platform ${{ matrix.builder_platform }}
+          --arch ${{ matrix.arch }}
+
+      - name: Package version-tag macOS build
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && matrix.builder_platform == 'mac'
+        shell: bash
+        env:
+          KEEN_CI_VERSION_TAG: 'true'
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: >-
+          npm run ci:package --
+          --platform ${{ matrix.builder_platform }}
+          --arch ${{ matrix.arch }}
+
+      - name: Validate and collect package files
+        run: >-
+          npm run release:collect --
+          --platform ${{ matrix.artifact_platform }}
+          --arch ${{ matrix.arch }}
+          --source release
+          --output ci-artifacts
+
+      - name: Upload native packages and platform manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: electron-${{ matrix.artifact_platform }}-${{ matrix.arch }}
+          path: ci-artifacts/${{ matrix.artifact_platform }}-${{ matrix.arch }}/
+          if-no-files-found: error
+          include-hidden-files: false
+          compression-level: 0
+          retention-days: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && 30 || 14 }}
+
+  release:
+    name: Publish GitHub release
+    if: >-
+      (github.event_name == 'push' && github.event.deleted != true) ||
+      github.event_name == 'workflow_dispatch'
+    needs:
+      - verify
+      - package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Download all native package sets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: electron-*
+          path: release-assets
+          merge-multiple: true
+          digest-mismatch: error
+
+      - name: Select release tag and channel
+        id: release-metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          is_version_tag='false'
+
+          if [[ "${GITHUB_EVENT_NAME}" == 'push' && "${GITHUB_REF_TYPE}" == 'tag' ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+            release_title="Keen Key Console ${GITHUB_REF_NAME}"
+            if [[ "${GITHUB_REF_NAME}" == v* ]]; then
+              is_version_tag='true'
+            fi
+            if [[ "${GITHUB_REF_NAME}" == v* && "${GITHUB_REF_NAME}" != *-* ]]; then
+              release_channel='stable'
+            else
+              release_channel='prerelease'
+            fi
+          else
+            release_tag="build-${GITHUB_RUN_NUMBER}-${short_sha}"
+            release_title="Keen Key Console build #${GITHUB_RUN_NUMBER} (${short_sha})"
+            release_channel='continuous'
+          fi
+
+          {
+            echo "RELEASE_TAG=${release_tag}"
+            echo "RELEASE_TITLE=${release_title}"
+            echo "RELEASE_CHANNEL=${release_channel}"
+          } >> "${GITHUB_ENV}"
+
+          {
+            echo "tag=${release_tag}"
+            echo "channel=${release_channel}"
+            echo "is_version_tag=${is_version_tag}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Verify version tag
+        if: steps.release-metadata.outputs.is_version_tag == 'true'
+        run: npm run release:verify-tag -- "${RELEASE_TAG}"
+
+      - name: Generate checksums, manifests, and release notes
+        run: npm run release:prepare -- --assets release-assets --notes release-notes.md
+
+      - name: Summarize release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "### ${RELEASE_TITLE}"
+            echo
+            echo "Channel: \`${RELEASE_CHANNEL}\`"
+            echo
+            echo '| File | Bytes |'
+            echo '|---|---:|'
+            while IFS= read -r -d '' file; do
+              printf '| `%s` | %s |\n' "$(basename "$file")" "$(stat -c '%s' "$file")"
+            done < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create or update GitHub release and attach packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' assets < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
+          if [[ ${#assets[@]} -eq 0 ]]; then
+            echo 'No release assets were downloaded.' >&2
+            exit 1
+          fi
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            immutable="$(gh release view "${RELEASE_TAG}" --json isImmutable --jq '.isImmutable')"
+            if [[ "${immutable}" == 'true' ]]; then
+              echo "Release ${RELEASE_TAG} is immutable; its existing assets cannot be replaced." >&2
+              exit 1
+            fi
+
+            encoded_release_tag="$(node --input-type=module -e 'process.stdout.write(encodeURIComponent(process.argv[1]));' "${RELEASE_TAG}")"
+            existing_tag_commit="$(
+              gh api "repos/${GITHUB_REPOSITORY}/commits/${encoded_release_tag}" --jq '.sha'
+            )"
+            if [[ -z "${existing_tag_commit}" || "${existing_tag_commit}" != "${GITHUB_SHA}" ]]; then
+              echo "Release tag ${RELEASE_TAG} resolves to ${existing_tag_commit:-unknown}, not ${GITHUB_SHA}; refusing to clobber it." >&2
+              exit 1
+            fi
+
+            existing_release_dir="$(mktemp -d)"
+            trap 'rm -rf "${existing_release_dir}"' EXIT
+            if ! gh release download "${RELEASE_TAG}" \
+              --pattern release-manifest.json \
+              --dir "${existing_release_dir}"; then
+              echo "Release ${RELEASE_TAG} exists but has no readable release-manifest.json; refusing to replace unverified assets." >&2
+              exit 1
+            fi
+
+            existing_commit="$(
+              node --input-type=module -e \
+                'import { readFileSync } from "node:fs"; const value = JSON.parse(readFileSync(process.argv[1], "utf8")); process.stdout.write(String(value.sourceCommit ?? ""));' \
+                "${existing_release_dir}/release-manifest.json"
+            )"
+            if [[ -z "${existing_commit}" || "${existing_commit}" != "${GITHUB_SHA}" ]]; then
+              echo "Release ${RELEASE_TAG} belongs to commit ${existing_commit:-unknown}, not ${GITHUB_SHA}; refusing to clobber it." >&2
+              exit 1
+            fi
+
+            echo "Release ${RELEASE_TAG} already exists for this exact commit; replacing same-named assets and refreshing release metadata."
+            gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
+            if [[ "${RELEASE_CHANNEL}" == 'stable' ]]; then
+              gh release edit "${RELEASE_TAG}" \
+                --draft=false \
+                --prerelease=false \
+                --latest \
+                --title "${RELEASE_TITLE}" \
+                --notes-file release-notes.md
+            else
+              gh release edit "${RELEASE_TAG}" \
+                --draft=false \
+                --prerelease \
+                --latest=false \
+                --title "${RELEASE_TITLE}" \
+                --notes-file release-notes.md
+            fi
+            exit 0
+          fi
+
+          args=(
+            release create "${RELEASE_TAG}"
+            --title "${RELEASE_TITLE}"
+            --notes-file release-notes.md
+          )
+
+          if [[ "${GITHUB_EVENT_NAME}" == 'push' && "${GITHUB_REF_TYPE}" == 'tag' ]]; then
+            args+=(--verify-tag)
+          else
+            args+=(--target "${GITHUB_SHA}")
+          fi
+
+          if [[ "${RELEASE_CHANNEL}" == 'stable' ]]; then
+            args+=(--latest)
+          else
+            args+=(--prerelease --latest=false)
+          fi
+
+          gh "${args[@]}" "${assets[@]}"

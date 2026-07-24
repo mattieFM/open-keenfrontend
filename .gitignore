@@ -1,0 +1,15 @@
+node_modules/
+out/
+dist/
+release/
+ci-artifacts/
+release-assets/
+release-notes.md
+coverage/
+playwright-report/
+test-results/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store

@@ -1,0 +1,131 @@
+{
+  "name": "keen-key-console-electron",
+  "version": "0.1.0",
+  "description": "Unofficial key-only Keen project console for Electron",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "author": "Open-source contributors",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "npm run build && electron-builder --dir --publish never",
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:linux:x64": "npm run build && electron-builder --linux --x64 --publish never",
+    "dist:windows:x64": "npm run build && electron-builder --win --x64 --publish never",
+    "dist:macos:arm64": "npm run build && electron-builder --mac --arm64 --publish never",
+    "dist:macos:x64": "npm run build && electron-builder --mac --x64 --publish never",
+    "ci:install": "node scripts/ci-install.mjs",
+    "ci:package": "node scripts/package-ci.mjs",
+    "ci:verify": "npm run validate:release-workflow && npm run test:release && npm run lint && npm run test:core && npm test && npm run audit:static && npm run build",
+    "validate:release-workflow": "node scripts/validate-release-workflow.mjs",
+    "release:verify-tag": "node scripts/verify-release-tag.mjs",
+    "release:collect": "node scripts/collect-release-artifacts.mjs",
+    "release:prepare": "node scripts/prepare-ci-release.mjs",
+    "audit:static": "node scripts/static-audit.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:core": "tsx tests/core/self-test.ts",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "relay": "tsx apps/optional-relay/server.ts",
+    "test:release": "node tests/release/release-pipeline.test.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.8",
+    "dexie": "^4.0.11",
+    "dompurify": "^3.2.3",
+    "echarts": "^5.5.1",
+    "echarts-for-react": "^3.0.2",
+    "lucide-react": "^0.468.0",
+    "papaparse": "^5.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-grid-layout": "^1.5.0",
+    "react-hook-form": "^7.54.2",
+    "react-markdown": "^9.0.1",
+    "react-router-dom": "^6.28.1",
+    "remark-gfm": "^4.0.0",
+    "zustand": "^5.0.2",
+    "zod": "^3.24.1",
+    "react-resizable": "^3.0.5"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.49.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^22.10.2",
+    "@types/papaparse": "^5.3.15",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@types/react-grid-layout": "^1.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.1.0",
+    "eslint": "^9.17.0",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "io.keenkey.console",
+    "productName": "Keen Key Console",
+    "asar": true,
+    "files": [
+      "out/**/*",
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": false,
+      "notarize": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    },
+    "artifactName": "Keen-Key-Console-${version}-${os}-${arch}.${ext}",
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
+  "packageManager": "npm@10.9.2"
+}
