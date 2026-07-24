@@ -73,7 +73,7 @@ A release must not be called “perfect,” “complete parity,” or “server 
 ## Automated build and release gate
 
 - [x] Every branch push, every non-reserved user tag push, pull request, and manual run executes the verification and native packaging workflow definition; generated `build-*` tags are deliberately excluded.
-- [x] Every successful branch push publishes a uniquely tagged continuous prerelease; every successful user tag push outside the reserved `build-*` namespace publishes from that tag; pull requests never publish.
+- [x] Every successful eligible branch push publishes a uniquely tagged continuous prerelease; Dependabot pushes build artifacts without attempting a read-only-token Release; every successful user tag push outside the reserved `build-*` namespace publishes from that tag; pull requests never publish.
 - [x] Manual dispatch publishes an unsigned continuous prerelease for the selected commit and cannot replace or sign a version-tag Release.
 - [x] Every non-reserved user-pushed tag publishes from that existing tag; `v*` tags must exactly match `v` plus the `package.json` version.
 - [x] Linux x64, Windows x64, macOS Intel, and macOS Apple Silicon package jobs use native GitHub-hosted runners.
@@ -87,6 +87,10 @@ A release must not be called “perfect,” “complete parity,” or “server 
 - [x] Native manifests, aggregate source/build/signing metadata, and SHA-256 checksums are attached to every Release.
 - [x] A rerun can replace an existing release only when both its Git tag and attached provenance manifest name the exact source commit being rebuilt.
 - [x] Release helpers reject tag/version mismatches, missing or unexpected artifacts, path traversal, size mismatches, source-commit disagreement, and SHA-256 tampering in dependency-independent fixtures.
+- [x] Generated-directory ignores are root-anchored; `.gitignore` cannot silently exclude a source subtree named `release`.
+- [x] Release tooling is validated before dependency installation, and its self-test lives with the release scripts rather than depending on an optionally copied test subtree.
+- [x] A generated npm lockfile is uploaded immediately after dependency installation so it can be recovered from a later failed run.
+- [x] Non-production no-lock builds emit a notice; pushed `v*` releases require a committed reviewed lockfile before dependency installation.
 - [x] Existing mutable Releases are rerun-safe through same-name asset replacement; immutable Releases fail clearly instead of silently diverging.
 - [x] Signing credentials are scoped to matching-platform steps on actual pushed `v*` tags and remain optional; manual dispatch is always unsigned.
 - [x] Unsigned macOS development builds do not attempt Developer ID signing or notarization; version builds enable signing/notarization only when the matching secrets are complete.

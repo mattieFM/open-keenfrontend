@@ -142,7 +142,7 @@ npm run dist
 
 `.github/workflows/electron-build-release.yml` verifies and packages the Electron app on every branch push, every non-reserved tag push, pull request, and manual run. Native jobs produce Linux x64, Windows x64, macOS Intel, and macOS Apple Silicon packages.
 
-Every successful **branch push** creates a uniquely tagged continuous GitHub prerelease with all desktop packages attached. Every successful **user tag push** creates a release from that existing tag; the generated `build-*` namespace is reserved and excluded so a continuous Release tag cannot start a duplicate build. A `v<package-version>` tag must exactly match `package.json`. Pull requests build downloadable workflow artifacts but never publish a Release. Manual dispatch always creates or refreshes an unsigned continuous prerelease for the selected commit, even when the selected ref is a tag; it never replaces or signs that tag's Release. A push containing several commits releases the pushed head commit.
+Every successful **eligible branch push** creates a uniquely tagged continuous GitHub prerelease with all desktop packages attached. Dependabot-triggered pushes still verify and package, but do not attempt Release publication because GitHub supplies those runs a read-only token. Every successful **user tag push** creates a release from that existing tag; the generated `build-*` namespace is reserved and excluded so a continuous Release tag cannot start a duplicate build. A `v<package-version>` tag must exactly match `package.json`. Pull requests build downloadable workflow artifacts but never publish a Release. Manual dispatch always creates or refreshes an unsigned continuous prerelease for the selected commit, even when the selected ref is a tag; it never replaces or signs that tag's Release. A push containing several commits releases the pushed head commit.
 
 Continuous releases use tags such as:
 
@@ -161,7 +161,7 @@ git push origin HEAD
 git push origin v0.1.0
 ```
 
-Each Release includes eight platform installers/archives, four native-build manifests, `release-manifest.json`, and `SHA256SUMS.txt`. CI resolves one npm lock graph and reuses it across every native runner. Official GitHub Actions are pinned to immutable commit SHAs. Only an actual pushed `v*` tag can receive optional macOS signing/notarization and Windows Authenticode signing; branch, pull-request, non-version-tag, and manual-dispatch builds are unsigned. See [Build and release automation](docs/RELEASING.md) and [the complete Actions behavior](docs/GITHUB_ACTIONS_RELEASES.md).
+Each Release includes eight platform installers/archives, four native-build manifests, `release-manifest.json`, and `SHA256SUMS.txt`. CI resolves one npm lock graph and reuses it across every native runner. The resolved lock is uploaded immediately after installation, even when a later verification step fails. Official GitHub Actions are pinned to immutable commit SHAs. Only an actual pushed `v*` tag can receive optional macOS signing/notarization and Windows Authenticode signing; branch, pull-request, non-version-tag, and manual-dispatch builds are unsigned. See [Build and release automation](docs/RELEASING.md), [the complete Actions behavior](docs/GITHUB_ACTIONS_RELEASES.md), and [the July 24 CI hotfix](docs/CI_HOTFIX_2026-07-24.md).
 
 ## First connection
 
@@ -253,7 +253,7 @@ Reserved mutation variables are documented in [Environment variables](docs/ENVIR
 
 ### Verification result in this environment
 
-The dependency-light core invariants and the current static TypeScript/import/security audit passed. The release workflow and helper scripts were validated locally with parsed YAML, exact tag checks, native-target guards, synthetic eight-package fixtures, manifest tamper/input rejection, and SHA-256 verification. This environment still has no installed project dependencies or lockfile because npm registry access was unavailable, so TypeScript semantic checking, Vitest, ESLint, the Electron/Vite build, Playwright/Axe, real native packaging, the hosted workflow, and live Keen contracts are **not** reported as executed here.
+The dependency-light core invariants and the current static TypeScript/import/security audit passed. The release workflow and helper scripts were validated locally with parsed YAML, exact tag checks, native-target guards, synthetic eight-package fixtures, manifest tamper/input rejection, and SHA-256 verification. This environment still has no installed project dependencies or lockfile because npm registry access was unavailable, so TypeScript semantic checking, Vitest, ESLint, the Electron/Vite build, Playwright/Axe, real native packaging, a fully successful hosted workflow, and live Keen contracts are **not** reported as executed here. The first hosted run exposed the corrected `.gitignore`/untracked-test issue before packaging.
 
 Read the dated [Revalidation report](docs/REVALIDATION_2026-07-23.md) and [Release checklist](docs/RELEASE_CHECKLIST.md).
 

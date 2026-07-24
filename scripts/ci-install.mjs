@@ -7,12 +7,18 @@ const lockfiles = ['npm-shrinkwrap.json', 'package-lock.json'];
 const initialLockfile = lockfiles.find((name) => existsSync(resolve(root, name)));
 const installMode = initialLockfile ? 'ci' : 'install';
 const dryRun = process.argv.includes('--dry-run');
+const requireCommittedLock = process.env.KEEN_REQUIRE_COMMITTED_LOCK === 'true';
 
 if (initialLockfile) {
   console.log(`Installing dependencies reproducibly with npm ci using ${initialLockfile}.`);
+} else if (requireCommittedLock) {
+  console.error(
+    '::error title=Committed npm lockfile required::A pushed v* release requires package-lock.json or npm-shrinkwrap.json to be committed and reviewed before dependency installation.'
+  );
+  process.exit(1);
 } else {
-  console.warn(
-    '::warning title=No committed npm lockfile::Falling back to npm install. This run will generate a package-lock.json and share it with every native packaging job. Commit and review that lockfile before a production release.'
+  console.log(
+    '::notice title=Bootstrapping npm lockfile::No committed npm lockfile is present. This non-production run will generate package-lock.json and upload it as the resolved-npm-lock artifact for review.'
   );
 }
 

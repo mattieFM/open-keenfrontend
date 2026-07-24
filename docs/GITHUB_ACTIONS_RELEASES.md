@@ -6,7 +6,8 @@ The desktop pipeline lives at `.github/workflows/electron-build-release.yml`. It
 
 | Event | Verification | Native packages | GitHub Release |
 |---|---:|---:|---:|
-| Push to any branch | yes | all four targets | unique continuous prerelease |
+| Push to any branch by a non-Dependabot actor | yes | all four targets | unique continuous prerelease |
+| Dependabot push | yes | all four targets | no; workflow artifacts only |
 | Push of any user tag except reserved `build-*` | yes | all four targets | release from the pushed tag |
 | Pull request | yes | all four targets | no; workflow artifacts only |
 | Manual dispatch | yes | all four targets | unsigned continuous prerelease for the selected commit |
@@ -45,11 +46,11 @@ No Keen Project ID or API key is required by this pipeline.
 
 ## Dependency consistency
 
-`npm run ci:install` uses `npm ci` whenever `package-lock.json` or `npm-shrinkwrap.json` exists. If neither has been committed yet, only the verification job falls back to `npm install --package-lock=true`. It then uploads the generated lock as a private, one-day workflow artifact.
+`npm run ci:install` uses `npm ci` whenever `package-lock.json` or `npm-shrinkwrap.json` exists. If neither has been committed yet, a non-production verification job falls back to `npm install --package-lock=true` and uploads the generated lock as the private `resolved-npm-lock` workflow artifact for seven days. An actual pushed `v*` release fails before dependency installation when no committed lockfile exists.
 
 The workflow-generated `build-*` tag namespace is excluded from the push trigger, preventing a continuous Release tag from starting a duplicate native build. Every native job downloads that same lock, rejects an artifact digest mismatch, and installs with `npm ci`. This gives one workflow run a single resolved dependency graph across Linux, Windows, Intel macOS, and Apple Silicon macOS.
 
-The fallback is a bootstrap aid, not the production standard. Commit and review `package-lock.json` before publishing a production version.
+The fallback is a non-production bootstrap aid. Commit and review `package-lock.json` before pushing a production version tag; the workflow enforces this boundary.
 
 ## Native build matrix
 
@@ -217,4 +218,30 @@ Release assembly requires all four platform package sets, so it normally runs on
 
 ## Release-volume policy
 
-One Release per push is useful for development handoff but creates many tags and prereleases. Repository maintainers should define a retention policy for old `build-*` Releases and tags. Never delete versioned release tags as part of that cleanup.
+One Release per eligible push is useful for development handoff but creates many tags and prereleases. Repository maintainers should define a retention policy for old `build-*` Releases and tags. Never delete versioned release tags as part of that cleanup.
+
+## Diagnosing a partial source commit
+
+The verification job validates release tooling before installing dependencies. If it reports a missing release helper, the named path is absent from the checked-out commit; changing npm or the checkout action will not restore an untracked file. The original failure was caused by an unanchored `.gitignore` entry, `release/`, which also matched `tests/release/`. Generated root directories are now anchored, such as `/release/`.
+
+Confirm the required files are committed. The validator performs this check automatically whenever it runs inside a Git work tree:
+
+```bash
+git ls-files --error-unmatch \
+  scripts/validate-release-workflow.mjs \
+  scripts/release-pipeline-self-test.mjs \
+  scripts/prepare-ci-release.mjs \
+  .github/workflows/electron-build-release.yml
+```
+
+When no lockfile is committed, a non-production run emits a notice and uploads the generated `resolved-npm-lock` artifact immediately after dependency installation. Download and review that artifact, then commit `package-lock.json` so subsequent runs use `npm ci`. An actual pushed `v*` release refuses to install dependencies without a committed lockfile.
+
+
+### Dependabot Action updates
+
+The release validator allows only `actions/checkout`, `actions/setup-node`, `actions/upload-artifact`, and `actions/download-artifact`. Every use must remain pinned to a full 40-character commit SHA, and one action must use the same SHA throughout the workflow. The validator deliberately does not duplicate exact SHAs in a second file, so a Dependabot pull request can update a reviewed pin without failing solely because a hard-coded mirror was stale.
+
+
+### Dependabot publication boundary
+
+Dependabot-triggered `push` and pull-request runs still execute verification and all four native package jobs. The release job is skipped when `github.actor == 'dependabot[bot]'`, because those events receive a read-only `GITHUB_TOKEN` and cannot safely publish a Release. Once the reviewed update is merged, the resulting normal branch push publishes the continuous prerelease.

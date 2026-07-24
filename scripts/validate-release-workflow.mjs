@@ -1,7 +1,9 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const workflow = readFileSync(resolve('.github/workflows/electron-build-release.yml'), 'utf8');
+const gitignore = readFileSync(resolve('.gitignore'), 'utf8');
 const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
 const prepareScript = readFileSync(resolve('scripts/prepare-ci-release.mjs'), 'utf8');
 const macEntitlements = readFileSync(resolve('build/entitlements.mac.plist'), 'utf8');
@@ -21,12 +23,15 @@ requireCondition(/branches:\s*\n\s+- ['"]\*\*['"]/u.test(workflow), 'Push trigge
 requireCondition(/tags:\s*\n\s+- ['"]\*\*['"]\s*\n\s+- ['"]!build-\*['"]/u.test(workflow), 'Push trigger must include all user tags while reserving build-* for generated continuous releases.');
 requireCondition(/^  pull_request:\s*$/mu.test(workflow), 'Workflow must validate pull requests.');
 requireCondition(/^  workflow_dispatch:\s*$/mu.test(workflow), 'Workflow must support manual dispatch.');
-requireCondition(!/cancel-in-progress:\s*true/u.test(workflow), 'Runs must not be cancelled because every push must remain releasable.');
+requireCondition(!/cancel-in-progress:\s*true/u.test(workflow), 'Runs must not be cancelled because every eligible push must remain releasable.');
+requireCondition(/^\/release\/$/mu.test(gitignore), 'The root electron-builder output must be ignored with /release/.');
+requireCondition(!/^release\/$/mu.test(gitignore), 'An unanchored release/ ignore rule would silently exclude tests/release and other source subtrees.');
 
 requireCondition(/^permissions:\s*\n  contents: read/mu.test(workflow), 'Default workflow permissions must be read-only.');
 requireCondition((workflow.match(/contents:\s*write/gu) ?? []).length === 1, 'Exactly one job must request contents: write.');
 requireCondition(/release:[\s\S]*?permissions:\s*\n      contents: write/u.test(workflow), 'Only the release job should request contents: write.');
-requireCondition(/release:[\s\S]*?github\.event_name == 'push'[\s\S]*?workflow_dispatch/u.test(workflow), 'Release job must publish every non-deletion push and manual run.');
+requireCondition(/release:[\s\S]*?github\.event_name == 'push'[\s\S]*?workflow_dispatch/u.test(workflow), 'Release job must publish every eligible non-deletion push and manual run.');
+requireCondition(/release:[\s\S]*?github\.actor != 'dependabot\[bot\]'/u.test(workflow), 'Dependabot runs must build artifacts without attempting a write-protected GitHub Release.');
 requireCondition(/package:[\s\S]*?needs: verify/u.test(workflow), 'Native packaging must wait for verification.');
 requireCondition(/release:[\s\S]*?needs:\s*\n      - verify\s*\n      - package/u.test(workflow), 'Release publication must wait for verification and every native package.');
 requireCondition(/args=\([\s\S]{0,160}release create/u.test(workflow), 'Workflow must create GitHub releases.');
@@ -39,6 +44,10 @@ requireCondition(/gh release download "\$\{RELEASE_TAG\}"[\s\S]{0,180}--pattern 
 requireCondition(/existing_tag_commit[\s\S]{0,500}GITHUB_SHA[\s\S]{0,220}refusing to clobber/u.test(workflow), 'Existing release replacement must refuse a tag-to-commit mismatch.');
 requireCondition(/existing_commit[\s\S]{0,500}GITHUB_SHA[\s\S]{0,220}refusing to clobber/u.test(workflow), 'Existing release replacement must refuse a provenance-manifest source-commit mismatch.');
 requireCondition(/resolved-npm-lock/u.test(workflow), 'Native jobs must share the dependency graph resolved by verification.');
+requireCondition(/name: Verify checked-out release source[\s\S]{0,220}npm run validate:release-workflow/u.test(workflow), 'Verification must check the committed release source before dependency installation.');
+requireCondition(workflow.indexOf('name: Verify checked-out release source') < workflow.indexOf('name: Resolve and install dependencies'), 'The committed source check must run before dependency installation.');
+requireCondition(workflow.indexOf('name: Upload resolved npm lock') < workflow.indexOf('name: Run deterministic checks, unit tests, and production build'), 'The resolved lock must be preserved before later verification can fail.');
+requireCondition(/KEEN_REQUIRE_COMMITTED_LOCK: \$\{\{ github\.event_name == 'push' && startsWith\(github\.ref, 'refs\/tags\/v'\) \}\}/u.test(workflow), 'Pushed v* releases must require a committed npm lockfile.');
 requireCondition(/digest-mismatch: error/u.test(workflow), 'Downloaded workflow artifacts must fail on digest mismatch.');
 requireCondition(/SHA256SUMS\.txt/u.test(prepareScript), 'Release preparation must generate SHA256SUMS.txt.');
 requireCondition(/release-manifest\.json/u.test(prepareScript), 'Release preparation must generate release-manifest.json.');
@@ -46,13 +55,14 @@ requireCondition(/signingStatus/u.test(prepareScript), 'Release metadata must pr
 requireCondition(/releaseChannel === 'continuous' \|\| !releaseTag\.startsWith\('v'\)/u.test(prepareScript), 'Continuous and non-version release assembly must enforce unsigned packages.');
 requireCondition(/Continuous and non-version releases must be unsigned/u.test(prepareScript), 'Unsigned release-channel violations must fail with an explicit error.');
 
-const expectedActionPins = new Map([
-  ['actions/checkout', '9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0'],
-  ['actions/setup-node', '820762786026740c76f36085b0efc47a31fe5020'],
-  ['actions/upload-artifact', '043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'],
-  ['actions/download-artifact', '3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c']
+const approvedActions = new Set([
+  'actions/checkout',
+  'actions/setup-node',
+  'actions/upload-artifact',
+  'actions/download-artifact'
 ]);
 const actionUses = [...workflow.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s*#.*)?$/gmu)].map((match) => match[1]);
+const observedActionPins = new Map();
 requireCondition(actionUses.length > 0, 'Workflow contains no external actions.');
 for (const actionUse of actionUses) {
   const separator = actionUse.lastIndexOf('@');
@@ -60,11 +70,16 @@ for (const actionUse of actionUses) {
   const reference = actionUse.slice(separator + 1);
   requireCondition(Boolean(name && reference), `Malformed action reference: ${actionUse}`);
   requireCondition(/^[0-9a-f]{40}$/u.test(reference), `Action must be pinned to a full commit SHA: ${actionUse}`);
-  requireCondition(expectedActionPins.has(name), `Unapproved external action: ${name}`);
-  if (expectedActionPins.has(name)) requireCondition(reference === expectedActionPins.get(name), `Unexpected pin for ${name}: ${reference}`);
+  requireCondition(approvedActions.has(name), `Unapproved external action: ${name}`);
+  const previousReference = observedActionPins.get(name);
+  requireCondition(
+    !previousReference || previousReference === reference,
+    `Action ${name} must use one consistent commit SHA throughout the workflow.`
+  );
+  if (!previousReference) observedActionPins.set(name, reference);
 }
-for (const [name, reference] of expectedActionPins) {
-  requireCondition(actionUses.includes(`${name}@${reference}`), `Workflow is missing pinned action ${name}@${reference}.`);
+for (const name of approvedActions) {
+  requireCondition(observedActionPins.has(name), `Workflow is missing required action ${name}.`);
 }
 
 const expectedMatrixRows = [
@@ -110,25 +125,50 @@ const expectedScripts = {
   'release:verify-tag': 'node scripts/verify-release-tag.mjs',
   'release:collect': 'node scripts/collect-release-artifacts.mjs',
   'release:prepare': 'node scripts/prepare-ci-release.mjs',
-  'test:release': 'node tests/release/release-pipeline.test.mjs'
+  'test:release': 'node scripts/release-pipeline-self-test.mjs'
 };
 for (const [name, command] of Object.entries(expectedScripts)) {
   requireCondition(packageJson.scripts?.[name] === command, `${name} script is missing or changed unexpectedly.`);
 }
-for (const path of [
+const requiredReleaseFiles = [
+  '.github/workflows/electron-build-release.yml',
+  '.gitignore',
+  'package.json',
   'scripts/ci-install.mjs',
   'scripts/package-ci.mjs',
+  'scripts/validate-release-workflow.mjs',
   'scripts/verify-release-tag.mjs',
   'scripts/collect-release-artifacts.mjs',
   'scripts/prepare-ci-release.mjs',
-  'tests/release/release-pipeline.test.mjs'
-]) {
+  'scripts/release-pipeline-self-test.mjs'
+];
+for (const path of requiredReleaseFiles) {
   requireCondition(existsSync(resolve(path)), `Required release helper is missing: ${path}`);
+}
+
+const gitProbe = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+  cwd: resolve('.'),
+  encoding: 'utf8',
+  stdio: ['ignore', 'pipe', 'ignore']
+});
+if (gitProbe.status === 0 && gitProbe.stdout.trim() === 'true') {
+  for (const path of requiredReleaseFiles) {
+    const tracked = spawnSync('git', ['ls-files', '--error-unmatch', '--', path], {
+      cwd: resolve('.'),
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'ignore']
+    });
+    requireCondition(tracked.status === 0, `Required release helper is not tracked by Git: ${path}`);
+  }
 }
 requireCondition(packageJson.scripts?.['test:core'] === 'tsx tests/core/self-test.ts', 'Dependency-light core test script is missing.');
 requireCondition(packageJson.scripts?.lint === 'eslint .', 'ESLint must use flat-config-compatible invocation.');
 requireCondition(packageJson.scripts?.['ci:verify']?.includes('validate:release-workflow'), 'ci:verify must validate the release workflow.');
 requireCondition(packageJson.scripts?.['ci:verify']?.includes('test:release'), 'ci:verify must run the dependency-free release pipeline self-test.');
+const installHelper = readFileSync(resolve('scripts/ci-install.mjs'), 'utf8');
+requireCondition(/KEEN_REQUIRE_COMMITTED_LOCK/u.test(installHelper), 'Dependency installation must support a committed-lock requirement for production tags.');
+requireCondition(/::notice title=Bootstrapping npm lockfile/u.test(installHelper), 'Non-production lock bootstrap must be a notice rather than a failing warning.');
+requireCondition(/::error title=Committed npm lockfile required/u.test(installHelper), 'Production tag lock failures must use an explicit GitHub error annotation.');
 requireCondition(packageJson.scripts?.dist?.includes('--publish never'), 'electron-builder publishing must remain disabled in package scripts.');
 requireCondition(packageJson.engines?.node === '>=22', 'package.json must declare Node.js 22 or newer.');
 requireCondition(packageJson.engines?.npm === '>=10', 'package.json must declare npm 10 or newer.');

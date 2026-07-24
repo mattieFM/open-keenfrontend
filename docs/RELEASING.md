@@ -69,7 +69,7 @@ See [the Actions guide](GITHUB_ACTIONS_RELEASES.md#signing-and-notarization) for
 
 ## Dependency lock
 
-The workflow can bootstrap without a committed lockfile, but that is migration convenience rather than a production standard. The verification job shares its generated lock with all native jobs for within-run consistency. Commit the reviewed lock as soon as npm access is available:
+Non-production workflow runs can bootstrap without a committed lockfile. The verification job uploads its generated lock and shares it with all native jobs for within-run consistency. A pushed `v*` production release is blocked before installation unless a reviewed lockfile is already committed. Commit it as soon as npm access is available:
 
 ```bash
 npm install
@@ -80,4 +80,4 @@ git commit -m "chore: add reviewed npm lockfile"
 
 ## Cleanup of continuous Releases
 
-The one-release-per-push policy intentionally creates many `build-*` prereleases and tags. Automate cleanup only for old `build-*` entries and preserve all versioned tags and Releases.
+The one-release-per-eligible-push policy intentionally creates many `build-*` prereleases and tags. Automate cleanup only for old `build-*` entries and preserve all versioned tags and Releases.
