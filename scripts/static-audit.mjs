@@ -15,6 +15,20 @@ try {
 }
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+const tsconfigPath = join(root, 'tsconfig.json');
+const tsconfigReadResult = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
+const parsedTsconfig = ts.parseJsonConfigFileContent(
+  tsconfigReadResult.config ?? {},
+  ts.sys,
+  root,
+  undefined,
+  tsconfigPath
+);
+const tsconfigDiagnostics = [
+  ...(tsconfigReadResult.error ? [tsconfigReadResult.error] : []),
+  ...parsedTsconfig.errors
+].map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
+const compilerRootFiles = new Set(parsedTsconfig.fileNames.map((file) => resolve(file)));
 const codeRoots = ['src', 'apps', 'tests', 'scripts'];
 const sourceFiles = [];
 const declarationFiles = [];
@@ -124,9 +138,13 @@ const electronViteConfig = readFileSync(join(root, 'electron.vite.config.ts'), '
 const bundleVerifier = readFileSync(join(root, 'scripts/verify-electron-bundle.mjs'), 'utf8');
 const rendererStyles = readFileSync(join(root, 'src/renderer/src/styles.css'), 'utf8');
 const desktopBridgeDeclarationPath = join(root, 'src/preload/global.d.ts');
+const legacyDesktopBridgeDeclarationPath = join(root, 'src/preload/index.d.ts');
 const desktopBridgeDeclaration = existsSync(desktopBridgeDeclarationPath)
   ? readFileSync(desktopBridgeDeclarationPath, 'utf8')
   : '';
+const legacyDesktopBridgeDeclarationPresent = existsSync(legacyDesktopBridgeDeclarationPath);
+const desktopBridgeDeclarationIsCompilerRoot = compilerRootFiles.has(resolve(desktopBridgeDeclarationPath));
+const legacyDesktopBridgeDeclarationIsCompilerRoot = compilerRootFiles.has(resolve(legacyDesktopBridgeDeclarationPath));
 
 function relativeLuminance(hex) {
   const value = hex.replace('#', '');
@@ -164,7 +182,8 @@ const invariants = {
   boundedResponseStreaming: /response\.body\.getReader\(\)/u.test(electronMain) && /ResponseLimitError/u.test(electronMain),
   explicitSafeTestCredential: /Credential used for the safe test/u.test(connect) && /will not silently retry with a broader key/u.test(connect),
   accessibleConnectLandmark: /<section className="connect-hero" aria-labelledby="connect-hero-title">/u.test(connect) && /<h1 id="connect-hero-title">/u.test(connect),
-  desktopBridgeGlobalDeclaration: /import type \{ DesktopBridge \} from '\.\.\/shared\/types'/u.test(desktopBridgeDeclaration) && /interface Window[\s\S]*keenDesktop:\s*DesktopBridge/u.test(desktopBridgeDeclaration) && !existsSync(join(root, 'src/preload/index.d.ts')),
+  desktopBridgeGlobalDeclaration: desktopBridgeDeclarationIsCompilerRoot && /import type \{ DesktopBridge \} from '\.\.\/shared\/types'/u.test(desktopBridgeDeclaration) && /interface Window[\s\S]*keenDesktop:\s*DesktopBridge/u.test(desktopBridgeDeclaration),
+  legacyDesktopBridgeDeclarationShadowed: !legacyDesktopBridgeDeclarationPresent || !legacyDesktopBridgeDeclarationIsCompilerRoot,
   webCryptoArrayBufferViews: /type CryptoBytes = Uint8Array<ArrayBuffer>/u.test(credentialVault) && /function fromBase64\([\s\S]{0,240}new Uint8Array\(binary\.length\)/u.test(credentialVault),
   streamedResponseArrayBufferViews: /Array<Uint8Array<ArrayBuffer>>/u.test(electronMain) && /chunks\.push\(new Uint8Array\(value\)\)/u.test(electronMain),
   mainProcessHostApproval: /ipcMain\.handle\('keen:approveHosts'/u.test(electronMain) && /approvedBaseIdentity/u.test(electronMain) && /validateApprovedTarget\(payload\.baseUrl, payload\.path, !app\.isPackaged, approvedBases\)/u.test(electronMain),
@@ -180,7 +199,16 @@ const invariants = {
   noRendererNodeImports: forbiddenRendererImports.length === 0
 };
 
+const advisories = [];
+if (legacyDesktopBridgeDeclarationPresent) {
+  advisories.push(
+    'src/preload/index.d.ts is a shadowed legacy declaration beside src/preload/index.ts; ' +
+    'TypeScript ignores it while src/preload/global.d.ts supplies the active Window bridge type. Remove the legacy file when convenient.'
+  );
+}
+
 const failures = [];
+if (tsconfigDiagnostics.length) failures.push(`${tsconfigDiagnostics.length} TypeScript configuration diagnostic(s)`);
 if (diagnostics.length) failures.push(`${diagnostics.length} TypeScript syntax diagnostic(s)`);
 if (missingImports.length) failures.push(`${missingImports.length} unresolved internal import(s)`);
 if (secretFindings.length) failures.push(`${secretFindings.length} likely long secret literal(s)`);
@@ -190,11 +218,13 @@ const report = {
   executableTypeScriptFiles: sourceFiles.length,
   declarationFiles: declarationFiles.length,
   scannedTextFiles: textFiles.length,
+  tsconfigDiagnostics,
   syntaxDiagnostics: diagnostics,
   unresolvedInternalImports: missingImports,
   forbiddenRendererImports,
   likelySecretLiterals: secretFindings,
   invariants,
+  advisories,
   passed: failures.length === 0,
   failures
 };
@@ -205,11 +235,14 @@ else {
   console.log(`- ${report.executableTypeScriptFiles} executable TypeScript/TSX files`);
   console.log(`- ${report.declarationFiles} TypeScript declaration files`);
   console.log(`- ${report.scannedTextFiles} text/code files scanned`);
+  console.log(`- ${report.tsconfigDiagnostics.length} TypeScript configuration diagnostics`);
   console.log(`- ${report.syntaxDiagnostics.length} syntax diagnostics`);
   console.log(`- ${report.unresolvedInternalImports.length} unresolved internal imports`);
   console.log(`- ${report.forbiddenRendererImports.length} forbidden renderer Node imports`);
   console.log(`- ${report.likelySecretLiterals.length} likely long secret literals`);
+  console.log(`- ${report.advisories.length} advisory notice(s)`);
   for (const [name, passed] of Object.entries(report.invariants)) console.log(`- ${passed ? 'PASS' : 'FAIL'} ${name}`);
+  for (const advisory of report.advisories) console.warn(`NOTICE: ${advisory}`);
   if (failures.length) failures.forEach((failure) => console.error(`ERROR: ${failure}`));
 }
 process.exitCode = report.passed ? 0 : 1;
