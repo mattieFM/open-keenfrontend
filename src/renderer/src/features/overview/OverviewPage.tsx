@@ -38,7 +38,7 @@ export function OverviewPage(): JSX.Element {
             <Link className="card module-card" to={module.path} key={module.path}>
               <div className="module-card__icon"><Icon size={19} /></div>
               <div><h3>{module.title}</h3><p>{module.description}</p></div>
-              <div className="module-card__meta"><span>{module.mutation && !changesEnabled ? 'Remote changes locked' : capability === 'denied' ? 'Selected key denied' : capability === 'allowed' ? 'Observed available' : 'Capability unknown'}</span><ArrowRight size={15} /></div>
+              <div className="module-card__meta"><span>{('mutation' in module && module.mutation) && !changesEnabled ? 'Remote changes locked' : capability === 'denied' ? 'Selected key denied' : capability === 'allowed' ? 'Observed available' : 'Capability unknown'}</span><ArrowRight size={15} /></div>
             </Link>
           );
         })}

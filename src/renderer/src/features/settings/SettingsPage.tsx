@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, KeyRound, LockKeyhole, Plus, Save, Server, ShieldCheck, Trash2, UnlockKeyhole } from 'lucide-react';
+import { Download, KeyRound, Plus, Save, Server, ShieldCheck, Trash2, UnlockKeyhole } from 'lucide-react';
 import type { CredentialMeta, CredentialType, StorageMode } from '@shared/types';
 import { normalizeBaseUrl } from '@shared/url';
 import { Badge, Button, Callout, Card, EmptyState, ErrorPanel, Field, IconButton, Input, Modal, PageHeader, Select } from '../../components/ui';

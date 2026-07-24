@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react';
-import type { ApiBridgeResult, ApiRequestPayload, ChartWidget, CredentialMeta, DashboardDocument, KeenResponse, QueryDraft, RedactedRequest } from '@shared/types';
+import type { ApiBridgeResult, ApiRequestPayload, CredentialMeta, DashboardDocument, KeenResponse, RedactedRequest } from '@shared/types';
 import { projectPath, safeDisplayUrl, validateApprovedTarget } from '@shared/url';
 import { Badge, Button, Callout, Card, EmptyState, Field, Input } from '../../components/ui';
 import { migrateDashboard } from '../../lib/dashboard/model';
@@ -120,10 +120,19 @@ export function PublicViewerPage(): JSX.Element {
   const credential = useMemo<CredentialMeta>(() => ({ id: 'public-memory-key', workspaceId: 'public-viewer', label: 'Restricted public key', type: 'access', storageMode: 'memory', hint: 'restricted••••key', createdAt: new Date(0).toISOString() }), []);
   const executeChart = useCallback<DashboardChartExecutor>(async (widget, runtime) => {
     if (!publicBearerKey) throw new Error('Restricted public key is not available in memory.');
-    const isSaved = widget.source.kind === 'saved';
-    const path = isSaved ? projectPath(projectId, 'queries', 'saved', widget.source.name, 'result') : projectPath(projectId, 'queries', (runtime ?? (widget.source as { query: QueryDraft }).query).analysis_type);
-    const method = isSaved ? 'GET' : 'POST';
-    const body = isSaved ? undefined : JSON.stringify(queryBody(runtime ?? (widget.source as { query: QueryDraft }).query));
+    let path: string;
+    let method: 'GET' | 'POST';
+    let body: string | undefined;
+    if (widget.source.kind === 'saved') {
+      if (!widget.source.name.trim()) throw new Error('Saved query name is missing from this dashboard widget.');
+      path = projectPath(projectId, 'queries', 'saved', widget.source.name, 'result');
+      method = 'GET';
+    } else {
+      const query = runtime ?? widget.source.query;
+      path = projectPath(projectId, 'queries', query.analysis_type);
+      method = 'POST';
+      body = JSON.stringify(queryBody(query));
+    }
     const result = await publicRequest({ requestId: crypto.randomUUID(), baseUrl: ANALYTICS_HOST, path, method, authorization: publicBearerKey, body, timeoutMs: 310_000 });
     const redactedRequest: RedactedRequest = { method, url: safeDisplayUrl(ANALYTICS_HOST, path), headers: { Authorization: '<redacted>' }, body: body ? JSON.parse(body) : undefined, credentialLabel: 'Restricted public key' };
     if (!result.ok) throw new Error(result.error.message);

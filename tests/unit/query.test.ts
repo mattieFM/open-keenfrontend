@@ -11,6 +11,12 @@ describe('query validation and semantic results', () => {
     expect(errors.join(' ')).toMatch(/Geo within filters cannot be combined/);
   });
 
+  it('reports malformed raw OR filters without throwing', () => {
+    const query = { analysis_type: 'count', event_collection: 'events', timeframe: 'this_7_days', filters: [{ operator: 'or', operands: null }] } as unknown as QueryDraft;
+    expect(() => validateQuery(query)).not.toThrow();
+    expect(validateQuery(query).join(' ')).toMatch(/OR requires at least two operands/);
+  });
+
   it('requires a funnel timeframe and rejects first-step flags', () => {
     const query: QueryDraft = { analysis_type: 'funnel', steps: [{ event_collection: 'a', actor_property: 'id', optional: true }, { event_collection: 'b', actor_property: 'id' }] };
     expect(validateQuery(query).join(' ')).toMatch(/first funnel step/i);

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import Papa from 'papaparse';
-import { Braces, FileUp, Plus, Send, Terminal, Upload } from 'lucide-react';
+import { Braces, FileUp, Plus, Send, Terminal } from 'lucide-react';
 import type { KeenResponse } from '@shared/types';
 import { Badge, Button, Callout, Card, CredentialSelect, EmptyState, ErrorPanel, Field, Input, PageHeader, ReadOnlyGate, Textarea } from '../../components/ui';
 import { useOperationCredentials, useWorkspaceContext } from '../../lib/api/useWorkspace';

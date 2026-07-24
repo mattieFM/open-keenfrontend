@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Braces, History, ListTree, Play, RotateCcw, Save, Square, WandSparkles } from 'lucide-react';
 import type { ChartType, KeenFilter, KeenResponse, QueryDraft, QueryDraftRecord } from '@shared/types';
-import { Badge, Button, Callout, Card, CredentialSelect, ErrorPanel, Field, Input, PageHeader, Select, Textarea } from '../../components/ui';
+import { Button, Callout, Card, CredentialSelect, ErrorPanel, Field, Input, PageHeader, Select, Textarea } from '../../components/ui';
 import { useOperationCredentials, useWorkspaceContext } from '../../lib/api/useWorkspace';
 import { useWorkspaceStore } from '../../lib/db/workspaceStore';
 import { ANALYSIS_TYPES, validateQuery } from '../../lib/query/validation';

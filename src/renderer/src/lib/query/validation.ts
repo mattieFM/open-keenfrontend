@@ -8,26 +8,34 @@ export const ANALYSIS_TYPES = [
 const TARGET_REQUIRED = new Set(['count_unique', 'sum', 'average', 'minimum', 'maximum', 'median', 'percentile', 'select_unique', 'standard_deviation']);
 const VALUE_OPTIONAL = new Set(['exists']);
 
+function orOperands(filter: KeenFilter): KeenFilter[] | undefined {
+  if (filter.operator !== 'or') return undefined;
+  return Array.isArray(filter.operands) ? filter.operands as KeenFilter[] : undefined;
+}
+
 function walkFilters(filters: KeenFilter[], path = 'filters'): string[] {
   const errors: string[] = [];
   filters.forEach((filter, index) => {
     const itemPath = `${path}[${index}]`;
-    if (filter.operator === 'or' && 'operands' in filter) {
-      if (!Array.isArray(filter.operands) || filter.operands.length < 2) errors.push(`${itemPath} OR requires at least two operands.`);
-      else errors.push(...walkFilters(filter.operands, `${itemPath}.operands`));
+    if (filter.operator === 'or') {
+      const operands = orOperands(filter);
+      if (!operands || operands.length < 2) errors.push(`${itemPath} OR requires at least two operands.`);
+      else errors.push(...walkFilters(operands, `${itemPath}.operands`));
       return;
     }
-    if (!('property_name' in filter) || !filter.property_name?.trim()) errors.push(`${itemPath} needs property_name.`);
-    if (!filter.operator?.trim()) errors.push(`${itemPath} needs operator.`);
-    if (!VALUE_OPTIONAL.has(filter.operator) && !('property_value' in filter)) errors.push(`${itemPath} needs property_value.`);
-    if (filter.operator === 'in' && !Array.isArray(filter.property_value)) errors.push(`${itemPath} in requires an array value.`);
-    if (filter.operator === 'within' && (!filter.property_value || typeof filter.property_value !== 'object')) errors.push(`${itemPath} within requires a geographic value object.`);
+    const propertyName = typeof filter.property_name === 'string' ? filter.property_name : '';
+    const operator = typeof filter.operator === 'string' ? filter.operator : '';
+    if (!propertyName.trim()) errors.push(`${itemPath} needs property_name.`);
+    if (!operator.trim()) errors.push(`${itemPath} needs operator.`);
+    if (!VALUE_OPTIONAL.has(operator) && !('property_value' in filter)) errors.push(`${itemPath} needs property_value.`);
+    if (operator === 'in' && !Array.isArray(filter.property_value)) errors.push(`${itemPath} in requires an array value.`);
+    if (operator === 'within' && (!filter.property_value || typeof filter.property_value !== 'object')) errors.push(`${itemPath} within requires a geographic value object.`);
   });
   return errors;
 }
 
 function hasOperator(filters: KeenFilter[] | undefined, operator: string): boolean {
-  return Boolean(filters?.some((filter) => filter.operator === operator || (filter.operator === 'or' && 'operands' in filter && hasOperator(filter.operands, operator))));
+  return Boolean(filters?.some((filter) => filter.operator === operator || hasOperator(orOperands(filter), operator)));
 }
 
 function validTimeframe(timeframe: QueryDraft['timeframe']): string[] {

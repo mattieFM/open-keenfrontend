@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, extname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
 let ts;
@@ -98,6 +98,8 @@ const maintenance = readFileSync(join(root, 'src/renderer/src/features/maintenan
 const scheduler = readFileSync(join(root, 'src/renderer/src/lib/api/requestScheduler.ts'), 'utf8');
 const electronMain = readFileSync(join(root, 'src/main/index.ts'), 'utf8');
 const connect = readFileSync(join(root, 'src/renderer/src/features/connect/ConnectPage.tsx'), 'utf8');
+const desktopBridgeDeclarationPath = join(root, 'src/preload/global.d.ts');
+const desktopBridgeDeclaration = existsSync(desktopBridgeDeclarationPath) ? readFileSync(desktopBridgeDeclarationPath, 'utf8') : '';
 
 const invariants = {
   privateBootConnect: /#\/connect/.test(mainBootstrap),
@@ -110,6 +112,7 @@ const invariants = {
   activeWorkspaceRequestCancellation: /activeBridgeRequests/.test(scheduler) && /window\.keenDesktop\.cancel\(requestId\)/.test(scheduler),
   boundedResponseStreaming: /response\.body\.getReader\(\)/.test(electronMain) && /ResponseLimitError/.test(electronMain),
   explicitSafeTestCredential: /Credential used for the safe test/.test(connect) && /will not silently retry with a broader key/.test(connect),
+  desktopBridgeGlobalDeclaration: /interface Window[\s\S]*keenDesktop:\s*DesktopBridge/.test(desktopBridgeDeclaration) && !existsSync(join(root, 'src/preload/index.d.ts')),
   noPlaintextWebStorage: !/\b(?:localStorage|sessionStorage)\b/.test(rendererText),
   noRendererNodeImports: forbiddenRendererImports.length === 0
 };

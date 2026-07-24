@@ -78,11 +78,12 @@ export function WidgetEditorModal({ document, widget, onSave, onClose }: { docum
 }
 
 function TargetSelector({ chartWidgets, selected, onToggle, dateWidget = false, document, filterCollection }: { chartWidgets: Array<Extract<DashboardWidget, { type: 'chart' }>>; selected: string[]; onToggle(id: string): void; dateWidget?: boolean; document?: DashboardDocument; filterCollection?: string }): JSX.Element {
+  const normalizedFilterCollection = filterCollection?.trim();
   return <div className="field"><span className="field__label">Target charts</span><div className="target-list">{chartWidgets.map((chart) => {
     const claimed = Boolean(dateWidget && document?.widgets.some((widget) => widget.type === 'date-range' && widget.targetWidgetIds.includes(chart.id) && !selected.includes(chart.id)));
     const saved = chart.source.kind === 'saved';
     const funnel = !dateWidget && chart.source.kind === 'ad-hoc' && chart.source.query.analysis_type === 'funnel';
-    const collectionMismatch = !dateWidget && chart.source.kind === 'ad-hoc' && Boolean(filterCollection?.trim()) && chart.source.query.event_collection !== filterCollection.trim();
+    const collectionMismatch = !dateWidget && chart.source.kind === 'ad-hoc' && Boolean(normalizedFilterCollection) && chart.source.query.event_collection !== normalizedFilterCollection;
     const incompatible = claimed || saved || funnel || collectionMismatch;
     const disabled = incompatible && !selected.includes(chart.id);
     const reason = claimed

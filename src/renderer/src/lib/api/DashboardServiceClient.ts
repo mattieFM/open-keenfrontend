@@ -19,7 +19,8 @@ export class DashboardServiceClient {
   constructor(private workspace: WorkspaceRecord, private runtimeMode: RuntimeMode) {}
 
   private async request<T>(path: string, credential: CredentialMeta, init: { method?: 'GET' | 'PUT' | 'DELETE'; body?: unknown; metadata?: KeenDashboardMetadata; mutation?: boolean } = {}): Promise<KeenResponse<T>> {
-    if (!this.workspace.dashboardBaseUrl) throw new Error('Dashboard service host is not configured.');
+    const dashboardBaseUrl = this.workspace.dashboardBaseUrl;
+    if (!dashboardBaseUrl) throw new Error('Dashboard service host is not configured.');
     if (init.mutation && this.runtimeMode !== 'changes-enabled') throw new Error('Remote changes are disabled for this workspace.');
     const secret = getCredential(credential.id);
     if (!secret) throw new Error(`Credential “${credential.label}” is locked.`);
@@ -30,7 +31,7 @@ export class DashboardServiceClient {
       try {
         return await window.keenDesktop.request({
           requestId,
-          baseUrl: this.workspace.dashboardBaseUrl,
+          baseUrl: dashboardBaseUrl,
           path: requestPath,
           method: init.method ?? 'GET',
           authorization: secret,
@@ -41,7 +42,7 @@ export class DashboardServiceClient {
         releaseRequest();
       }
     })();
-    const redactedRequest = { method: init.method ?? 'GET', url: safeDisplayUrl(this.workspace.dashboardBaseUrl, requestPath), headers: { Authorization: '<redacted>' }, body: init.body, credentialLabel: credential.label } as const;
+    const redactedRequest = { method: init.method ?? 'GET', url: safeDisplayUrl(dashboardBaseUrl, requestPath), headers: { Authorization: '<redacted>' }, body: init.body, credentialLabel: credential.label } as const;
     if (!result.ok) throw <KeenApiError>{ kind: result.error.kind, message: result.error.message, retryable: result.error.retryable, redactedRequest };
     let data: unknown = null;
     if (result.response.rawText?.trim()) {

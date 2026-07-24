@@ -17,6 +17,8 @@ assert.throws(() => validateApprovedTarget('https://api.keen.io', '/projects/p/q
 assert.throws(() => serializeDeleteEventsScope({}), /separate operation/);
 assert.equal(canonicalJson({ z: 1, a: 2 }), '{"a":2,"z":1}');
 assert.ok(validateQuery({ analysis_type: 'count', event_collection: 'events', timeframe: 'this_1_days' }).length === 0);
+const malformedFilterErrors = validateQuery({ analysis_type: 'count', event_collection: 'events', timeframe: 'this_1_days', filters: [{ operator: 'or', operands: null }] } as unknown as Parameters<typeof validateQuery>[0]);
+assert.match(malformedFilterErrors.join(' '), /OR requires at least two operands/);
 
 const now = new Date(0).toISOString();
 const dashboard: DashboardDocument = { schemaVersion: 1, id: 'd', workspaceId: 'w', title: 'D', tags: [], widgets: [{ id: 'c', type: 'chart', title: 'C', source: { kind: 'ad-hoc', query: { analysis_type: 'count', event_collection: 'events', timeframe: 'this_1_days' } }, chartType: 'metric' }], layout: [], settings: { gridGap: 12, background: '#fff', tileBackground: '#fff', tileRadius: 8 }, theme: { palette: [] }, metadata: {}, revision: 1, createdAt: now, updatedAt: now };

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertOctagon, Eye, FileWarning, Hash, ShieldAlert, Trash2, Wrench } from 'lucide-react';
+import { Eye, FileWarning, Hash, Trash2, Wrench } from 'lucide-react';
 import type { KeenFilter, KeenTimeframe, MaintenanceAuditRecord, QueryDraft } from '@shared/types';
 import { serializeDeleteEventsScope } from '@shared/url';
 import { Badge, Button, Callout, Card, CredentialSelect, EmptyState, ErrorPanel, Field, Input, PageHeader, ReadOnlyGate, Select, Textarea } from '../../components/ui';
