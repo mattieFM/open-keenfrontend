@@ -46,6 +46,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             xvfb \
+            xauth \
             libasound2t64 \
             libgbm1 \
             libgtk-3-0 \
@@ -71,11 +72,63 @@ jobs:
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         run: npm run release:verify-tag -- "${GITHUB_REF_NAME}"
 
-      - name: Run deterministic checks, unit tests, and production build
-        run: npm run ci:verify
+      - name: Validate release pipeline fixtures
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm run test:release 2>&1 | tee ci-logs/release-pipeline.log
+
+      - name: Lint source
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm run lint 2>&1 | tee ci-logs/lint.log
+
+      - name: Run dependency-light core invariants
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm run test:core 2>&1 | tee ci-logs/core.log
+
+      - name: Run unit and mock contract tests
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm test 2>&1 | tee ci-logs/vitest.log
+
+      - name: Audit static security and import invariants
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm run audit:static 2>&1 | tee ci-logs/static-audit.log
+
+      - name: Type-check TypeScript 5.9 source
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm run typecheck:ci 2>&1 | tee ci-logs/typecheck.log
+
+      - name: Build Electron bundles
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm run build:bundle 2>&1 | tee ci-logs/bundle.log
 
       - name: Run Electron boot and accessibility smoke test
-        run: xvfb-run --auto-servernum npm run test:e2e
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          xvfb-run --auto-servernum npm run test:e2e 2>&1 | tee ci-logs/electron-smoke.log
+
+      - name: Upload verification logs after failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verification-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-logs/
+          if-no-files-found: ignore
+          include-hidden-files: false
+          retention-days: 7
 
   package:
     name: Package ${{ matrix.label }}

@@ -163,11 +163,11 @@ export function ConnectPage(): JSX.Element {
 
   return (
     <div className="connect-shell">
-      <section className="connect-hero">
+      <section className="connect-hero" aria-labelledby="connect-hero-title">
         <div className="connect-brand"><div className="brand-mark brand-mark--small">K</div><div><strong>Keen Key Console</strong><span>Project-key workspace</span></div></div>
         <div className="connect-hero__copy">
           <Badge tone="success"><LockKeyhole size={12} /> Read-only on every boot</Badge>
-          <h1>Explore a Keen project without a Keen account session.</h1>
+          <h1 id="connect-hero-title">Explore a Keen project without a Keen account session.</h1>
           <p>Connect directly with a Project ID and the keys supplied during a developer handoff. The console exposes only operations those keys can perform.</p>
           <div className="connect-points">
             <div className="connect-point"><CheckCircle2 size={18} /><span>Inspect streams, run analyses, extract data, and validate instrumentation.</span></div>

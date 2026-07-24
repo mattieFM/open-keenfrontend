@@ -6,18 +6,22 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const DEFAULT_ITERATIONS = 310_000;
 
-function toBase64(bytes: Uint8Array): string {
+type CryptoBytes = Uint8Array<ArrayBuffer>;
+
+function toBase64(bytes: CryptoBytes): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
 
-function fromBase64(value: string): Uint8Array {
+function fromBase64(value: string): CryptoBytes {
   const binary = atob(value);
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
 }
 
-async function deriveKey(passphrase: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
+async function deriveKey(passphrase: string, salt: CryptoBytes, iterations: number): Promise<CryptoKey> {
   const material = await crypto.subtle.importKey('raw', encoder.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },

@@ -31,18 +31,19 @@ Pull requests never receive `contents: write` and never publish Releases. A manu
 
 ## Verification gate
 
-Before native packaging begins, the Ubuntu verification job runs:
+Before native packaging begins, the Ubuntu verification job runs individually named stages:
 
-1. the release-workflow structural validator;
-2. the dependency-free release-pipeline self-test, including tag guards, native manifests, eight-package assembly, checksums, provenance, and tamper rejection;
+1. the release-workflow structural validator before dependency installation;
+2. release-pipeline fixtures, including tag guards, the sandboxed CommonJS preload contract, native manifests, eight-package assembly, checksums, provenance, and tamper rejection;
 3. ESLint;
 4. deterministic boot/read-only and security invariants;
 5. Vitest;
-6. the static source/import/secret audit;
-7. strict TypeScript checking and the Electron/Vite production build;
-8. an Electron startup and Axe accessibility smoke test under Xvfb.
+6. the declaration-aware static source/import/secret audit;
+7. strict TypeScript 5.9 checking;
+8. Electron/Vite production bundling followed by a main/preload/renderer bundle-contract check;
+9. an Electron startup and Axe accessibility smoke test under Xvfb.
 
-No Keen Project ID or API key is required by this pipeline.
+The hosted workflow does not wrap these stages in one opaque `ci:verify` step. Each stage preserves output under `ci-logs/` with pipe failure propagation, and a failed job uploads the log directory for diagnosis. No Keen Project ID or API key is required by this pipeline.
 
 ## Dependency consistency
 

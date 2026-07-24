@@ -1,6 +1,6 @@
 # Release Checklist
 
-**Snapshot:** 2026-07-23
+**Snapshot:** 2026-07-24
 
 ## Executed in this environment
 
@@ -19,8 +19,12 @@
 - [x] Request diagnostics preserve `/3.0` and redact Authorization/Access Key path values.
 - [x] Responses use bounded streaming with a 150,000,000-byte application limit.
 - [x] Oversized responses are non-retryable validation failures.
+- [x] Web Crypto and response-stream bytes are explicitly ArrayBuffer-backed for TypeScript 5.9 BufferSource compatibility.
+- [x] Renderer host approval is implemented in the main process and enforced on every native API request.
+- [x] Sandboxed preload output is one verified CommonJS `index.cjs` bundle; ESM preload output is rejected.
+- [x] Connection-page muted, primary-action, and gradient text meet the automated contrast floor.
 - [x] Dependency-light core self-test passed.
-- [x] Static audit passed across 64 executable TypeScript/TSX files and 76 scanned text/code files.
+- [x] Static audit passed across 64 executable TypeScript/TSX files, 2 declaration files, and 77 scanned text/code files.
 - [x] TypeScript syntax transpilation reported zero diagnostics.
 - [x] Internal TypeScript module-resolution check reported zero missing imports.
 - [x] Renderer source reported zero Node built-in imports and zero plaintext web-storage paths.
@@ -32,7 +36,7 @@
 - [ ] `npm run typecheck` passes.
 - [ ] `npm run lint` passes without release-blocking findings.
 - [ ] `npm test` passes, including vault/IndexedDB, event-retry, client, query, dashboard, and URL tests.
-- [ ] `npm run build` produces main, preload, private renderer, and isolated public renderer bundles.
+- [ ] `npm run build` produces main, verified sandboxed CommonJS preload, private renderer, and isolated public renderer bundles.
 - [ ] `npm run test:e2e` passes on supported platforms.
 - [ ] Axe and keyboard-only checks pass across all editor/viewer routes.
 - [ ] `npm run package` succeeds and signed/notarized platform artifacts are produced.
@@ -90,6 +94,8 @@ A release must not be called “perfect,” “complete parity,” or “server 
 - [x] Generated-directory ignores are root-anchored; `.gitignore` cannot silently exclude a source subtree named `release`.
 - [x] Release tooling is validated before dependency installation, and its self-test lives with the release scripts rather than depending on an optionally copied test subtree.
 - [x] A generated npm lockfile is uploaded immediately after dependency installation so it can be recovered from a later failed run.
+- [x] Hosted verification stages are individually named, use `pipefail`, and upload per-stage logs after a failure.
+- [x] The bundle gate verifies the exact main/preload/renderer entry contract before Electron startup.
 - [x] Non-production no-lock builds emit a notice; pushed `v*` releases require a committed reviewed lockfile before dependency installation.
 - [x] Existing mutable Releases are rerun-safe through same-name asset replacement; immutable Releases fail clearly instead of silently diverging.
 - [x] Signing credentials are scoped to matching-platform steps on actual pushed `v*` tags and remain optional; manual dispatch is always unsigned.

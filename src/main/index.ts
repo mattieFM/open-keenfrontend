@@ -3,9 +3,10 @@ import { join } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 import type { ApiBridgeResult, ApiRequestPayload } from '../shared/types';
-import { validateApprovedTarget } from '../shared/url';
+import { approvedBaseIdentity, validateApprovedTarget } from '../shared/url';
 
 const requestControllers = new Map<string, AbortController>();
+const approvedBases = new Set<string>();
 const MAX_REQUEST_BYTES = 10_500_000;
 const MAX_RESPONSE_BYTES = 150_000_000;
 const DEFAULT_TIMEOUT_MS = 310_000;
@@ -32,7 +33,7 @@ async function readBoundedResponse(
   }
 
   const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
+  const chunks: Array<Uint8Array<ArrayBuffer>> = [];
   let receivedBytes = 0;
 
   try {
@@ -45,7 +46,7 @@ async function readBoundedResponse(
         await reader.cancel();
         throw new ResponseLimitError();
       }
-      chunks.push(value);
+      chunks.push(new Uint8Array(value));
     }
   } catch (error) {
     if (!(error instanceof ResponseLimitError)) {
@@ -88,7 +89,7 @@ function createWindow(): BrowserWindow {
     backgroundColor: '#f3f6f8',
     title: 'Keen Key Console',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -172,6 +173,19 @@ function registerIpc(): void {
     return { opened: true, path: result.filePaths[0], content };
   });
 
+  ipcMain.handle('keen:approveHosts', (_event, hosts: unknown) => {
+    if (!Array.isArray(hosts) || hosts.length < 1 || hosts.length > 4) {
+      throw new Error('Approve between one and four Keen service hosts.');
+    }
+    const identities = hosts.map((host) => {
+      if (typeof host !== 'string') throw new Error('Every approved Keen service host must be a URL string.');
+      const target = validateApprovedTarget(host, '/', !app.isPackaged);
+      return approvedBaseIdentity(target.toString());
+    });
+    approvedBases.clear();
+    for (const identity of identities) approvedBases.add(identity);
+  });
+
   ipcMain.on('keen:cancel', (_event, requestId: string) => {
     requestControllers.get(requestId)?.abort();
   });
@@ -185,7 +199,7 @@ function registerIpc(): void {
         return { ok: false, error: { kind: 'validation', message: 'Request body exceeds the 10 MB desktop safety limit.', retryable: false } };
       }
 
-      const target = validateApprovedTarget(payload.baseUrl, payload.path, !app.isPackaged);
+      const target = validateApprovedTarget(payload.baseUrl, payload.path, !app.isPackaged, approvedBases);
       const controller = new AbortController();
       requestControllers.set(payload.requestId, controller);
       const timeout = setTimeout(() => controller.abort(), payload.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -229,17 +243,17 @@ function registerIpc(): void {
     } catch (error) {
       const aborted = error instanceof DOMException && error.name === 'AbortError';
       const limited = error instanceof ResponseLimitError;
-      const fallbackKind = limited ? 'validation' : 'network';
+      const validation = error instanceof Error && /approved|base URL|invalid URL|HTTPS|origin-relative|path traversal|request URLs?/iu.test(error.message);
       return {
         ok: false,
         error: {
-          kind: aborted ? 'abort' : fallbackKind,
+          kind: aborted ? 'abort' : limited || validation ? 'validation' : 'network',
           message: aborted
             ? 'The request was cancelled or timed out.'
-            : limited
-              ? error.message
+            : limited || validation
+              ? error instanceof Error ? error.message : 'The request target is invalid.'
               : 'The network request failed. Check the service host and connectivity.',
-          retryable: !aborted && !limited
+          retryable: !aborted && !limited && !validation
         }
       };
     }
