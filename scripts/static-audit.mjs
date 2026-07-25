@@ -135,6 +135,7 @@ const electronMain = readFileSync(join(root, 'src/main/index.ts'), 'utf8');
 const connect = readFileSync(join(root, 'src/renderer/src/features/connect/ConnectPage.tsx'), 'utf8');
 const credentialVault = readFileSync(join(root, 'src/renderer/src/lib/vault/credentialVault.ts'), 'utf8');
 const electronViteConfig = readFileSync(join(root, 'electron.vite.config.ts'), 'utf8');
+const vitestConfig = readFileSync(join(root, 'vitest.config.ts'), 'utf8');
 const bundleVerifier = readFileSync(join(root, 'scripts/verify-electron-bundle.mjs'), 'utf8');
 const rendererStyles = readFileSync(join(root, 'src/renderer/src/styles.css'), 'utf8');
 const desktopBridgeDeclarationPath = join(root, 'src/preload/global.d.ts');
@@ -188,6 +189,7 @@ const invariants = {
   streamedResponseArrayBufferViews: /Array<Uint8Array<ArrayBuffer>>/u.test(electronMain) && /chunks\.push\(new Uint8Array\(value\)\)/u.test(electronMain),
   mainProcessHostApproval: /ipcMain\.handle\('keen:approveHosts'/u.test(electronMain) && /approvedBaseIdentity/u.test(electronMain) && /validateApprovedTarget\(payload\.baseUrl, payload\.path, !app\.isPackaged, approvedBases\)/u.test(electronMain),
   sandboxedCommonJsPreload: /format:\s*'cjs'/u.test(electronViteConfig) && /entryFileNames:\s*'\[name\]\.cjs'/u.test(electronViteConfig) && /preload\/index\.cjs/u.test(electronMain) && /Sandboxed preload must be a self-contained CommonJS bundle/u.test(bundleVerifier),
+  vitestUsesIndependentTsxTransform: !/@vitejs\/plugin-react/u.test(vitestConfig) && !/plugins:\s*\[\s*react\(\)/u.test(vitestConfig),
   bootColorContrast: Boolean(mutedInk && primaryGreen) && contrastRatio(mutedInk, '#ffffff') >= 4.5 && contrastRatio(primaryGreen, '#ffffff') >= 4.5,
   connectHeroTextContrast: [
     '.connect-brand span { color: #fff;',
