@@ -116,7 +116,8 @@
         "deb"
       ],
       "category": "Development",
-      "maintainer": "mattieFM <mattie.fuller@24g.com>"
+      "maintainer": "mattieFM <mattie.fuller@24g.com>",
+      "artifactName": "Keen-Key-Console-${version}-linux-x64.${ext}"
     },
     "artifactName": "Keen-Key-Console-${version}-${os}-${arch}.${ext}",
     "nsis": {
