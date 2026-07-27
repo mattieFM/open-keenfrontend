@@ -115,7 +115,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "mattieFM <mattie.fuller@24g.com>"
     },
     "artifactName": "Keen-Key-Console-${version}-${os}-${arch}.${ext}",
     "nsis": {
