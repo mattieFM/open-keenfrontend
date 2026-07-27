@@ -1,9 +1,11 @@
 import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
+// Vitest 2.x runs on its own Vite 5 dependency while the Electron renderer
+// builds with Vite 6. React Fast Refresh/Babel transforms are not needed in
+// jsdom unit tests, so keep the test config on Vitest's built-in TSX transform
+// instead of importing a plugin typed against the renderer's Vite instance.
 export default defineConfig({
-  plugins: [react()],
   resolve: { alias: { '@': resolve('src/renderer/src'), '@shared': resolve('src/shared') } },
   test: {
     environment: 'jsdom',
