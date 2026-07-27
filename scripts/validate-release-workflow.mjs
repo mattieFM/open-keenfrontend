@@ -46,7 +46,31 @@ requireCondition(/existing_commit[\s\S]{0,500}GITHUB_SHA[\s\S]{0,220}refusing to
 requireCondition(/resolved-npm-lock/u.test(workflow), 'Native jobs must share the dependency graph resolved by verification.');
 requireCondition(/name: Verify checked-out release source[\s\S]{0,220}npm run validate:release-workflow/u.test(workflow), 'Verification must check the committed release source before dependency installation.');
 requireCondition(workflow.indexOf('name: Verify checked-out release source') < workflow.indexOf('name: Resolve and install dependencies'), 'The committed source check must run before dependency installation.');
-requireCondition(workflow.indexOf('name: Upload resolved npm lock') < workflow.indexOf('name: Run deterministic checks, unit tests, and production build'), 'The resolved lock must be preserved before later verification can fail.');
+const verificationStages = [
+  ['Validate release pipeline fixtures', 'npm run test:release'],
+  ['Lint source', 'npm run lint'],
+  ['Run dependency-light core invariants', 'npm run test:core'],
+  ['Run unit and mock contract tests', 'npm test'],
+  ['Audit static security and import invariants', 'npm run audit:static'],
+  ['Type-check TypeScript 5.9 source', 'npm run typecheck:ci'],
+  ['Build Electron bundles', 'npm run build:bundle'],
+  ['Run Electron boot and accessibility smoke test', 'xvfb-run --auto-servernum npm run test:e2e']
+];
+let previousVerificationIndex = workflow.indexOf('name: Upload resolved npm lock');
+requireCondition(previousVerificationIndex >= 0, 'The resolved npm lock must be uploaded before verification.');
+for (const [stageName, command] of verificationStages) {
+  const stageIndex = workflow.indexOf(`name: ${stageName}`);
+  requireCondition(stageIndex > previousVerificationIndex, `Verification stage is missing or out of order: ${stageName}.`);
+  const stagePattern = new RegExp(
+    `name: ${escapeRegExp(stageName)}[\\s\\S]{0,360}set -o pipefail[\\s\\S]{0,220}${escapeRegExp(command)}[\\s\\S]{0,180}tee ci-logs/`,
+    'u'
+  );
+  requireCondition(stagePattern.test(workflow), `${stageName} must preserve its output with pipefail and tee.`);
+  previousVerificationIndex = stageIndex;
+}
+requireCondition(!/^\s*run:\s*npm run ci:verify\s*$/mu.test(workflow), 'Hosted verification must expose each stage instead of hiding failures behind ci:verify.');
+requireCondition(/name: Upload verification logs after failure[\s\S]{0,100}if: failure\(\)[\s\S]{0,240}name: verification-logs-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/u.test(workflow), 'Failed verification runs must upload stage logs.');
+requireCondition(/sudo apt-get install[\s\S]{0,260}xvfb[\s\S]{0,80}xauth/u.test(workflow), 'Electron smoke tests must install both Xvfb and xauth explicitly.');
 requireCondition(/KEEN_REQUIRE_COMMITTED_LOCK: \$\{\{ github\.event_name == 'push' && startsWith\(github\.ref, 'refs\/tags\/v'\) \}\}/u.test(workflow), 'Pushed v* releases must require a committed npm lockfile.');
 requireCondition(/digest-mismatch: error/u.test(workflow), 'Downloaded workflow artifacts must fail on digest mismatch.');
 requireCondition(/SHA256SUMS\.txt/u.test(prepareScript), 'Release preparation must generate SHA256SUMS.txt.');
@@ -125,7 +149,9 @@ const expectedScripts = {
   'release:verify-tag': 'node scripts/verify-release-tag.mjs',
   'release:collect': 'node scripts/collect-release-artifacts.mjs',
   'release:prepare': 'node scripts/prepare-ci-release.mjs',
-  'test:release': 'node scripts/release-pipeline-self-test.mjs'
+  'test:release': 'node scripts/release-pipeline-self-test.mjs',
+  'build:bundle': 'electron-vite build && node scripts/verify-electron-bundle.mjs',
+  'typecheck:ci': 'tsc --noEmit --pretty false'
 };
 for (const [name, command] of Object.entries(expectedScripts)) {
   requireCondition(packageJson.scripts?.[name] === command, `${name} script is missing or changed unexpectedly.`);
@@ -140,7 +166,8 @@ const requiredReleaseFiles = [
   'scripts/verify-release-tag.mjs',
   'scripts/collect-release-artifacts.mjs',
   'scripts/prepare-ci-release.mjs',
-  'scripts/release-pipeline-self-test.mjs'
+  'scripts/release-pipeline-self-test.mjs',
+  'scripts/verify-electron-bundle.mjs'
 ];
 for (const path of requiredReleaseFiles) {
   requireCondition(existsSync(resolve(path)), `Required release helper is missing: ${path}`);
@@ -165,6 +192,10 @@ requireCondition(packageJson.scripts?.['test:core'] === 'tsx tests/core/self-tes
 requireCondition(packageJson.scripts?.lint === 'eslint .', 'ESLint must use flat-config-compatible invocation.');
 requireCondition(packageJson.scripts?.['ci:verify']?.includes('validate:release-workflow'), 'ci:verify must validate the release workflow.');
 requireCondition(packageJson.scripts?.['ci:verify']?.includes('test:release'), 'ci:verify must run the dependency-free release pipeline self-test.');
+requireCondition(packageJson.scripts?.['ci:verify']?.includes('typecheck:ci'), 'ci:verify must run strict TypeScript 5.9 checking.');
+requireCondition(packageJson.scripts?.['ci:verify']?.includes('build:bundle'), 'ci:verify must build and verify Electron bundles.');
+requireCondition(packageJson.scripts?.build === 'npm run typecheck && npm run build:bundle', 'The normal build must type-check and then use the verified bundle path.');
+requireCondition(packageJson.devDependencies?.typescript === '5.9.3', 'TypeScript must be pinned exactly to 5.9.3 until a reviewed lockfile is committed.');
 const installHelper = readFileSync(resolve('scripts/ci-install.mjs'), 'utf8');
 requireCondition(/KEEN_REQUIRE_COMMITTED_LOCK/u.test(installHelper), 'Dependency installation must support a committed-lock requirement for production tags.');
 requireCondition(/::notice title=Bootstrapping npm lockfile/u.test(installHelper), 'Non-production lock bootstrap must be a notice rather than a failing warning.');

@@ -9,7 +9,16 @@ export default defineConfig({
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
-    resolve: { alias: { '@shared': resolve('src/shared') } }
+    resolve: { alias: { '@shared': resolve('src/shared') } },
+    build: {
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+          inlineDynamicImports: true
+        }
+      }
+    }
   },
   renderer: {
     root: 'src/renderer',

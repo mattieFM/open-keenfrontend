@@ -130,7 +130,8 @@ try {
     'scripts/verify-release-tag.mjs',
     'scripts/collect-release-artifacts.mjs',
     'scripts/prepare-ci-release.mjs',
-    'scripts/release-pipeline-self-test.mjs'
+    'scripts/release-pipeline-self-test.mjs',
+    'scripts/verify-electron-bundle.mjs'
   ]);
   expectSuccess(runCommand('git', ['init', '--quiet'], validatorFixture), 'validator fixture git initialization');
   expectSuccess(runCommand('git', ['add', '--all'], validatorFixture), 'validator fixture source tracking');
@@ -218,6 +219,41 @@ try {
     runNodeIn(validatorFixture, 'scripts/validate-release-workflow.mjs'),
     /Required release helper is missing: scripts\/release-pipeline-self-test\.mjs/u,
     'missing committed release self-test rejection'
+  );
+
+  const bundleFixture = join(tempRoot, 'bundle-fixture');
+  await copyFixtureFiles(bundleFixture, ['scripts/verify-electron-bundle.mjs']);
+  await mkdir(join(bundleFixture, 'out/main'), { recursive: true });
+  await mkdir(join(bundleFixture, 'out/preload'), { recursive: true });
+  await mkdir(join(bundleFixture, 'out/renderer'), { recursive: true });
+  await writeFile(
+    join(bundleFixture, 'out/main/index.js'),
+    "const preload = '../preload/index.cjs';\nconsole.log(preload);\n",
+    'utf8'
+  );
+  await writeFile(
+    join(bundleFixture, 'out/preload/index.cjs'),
+    "'use strict';\nconst { contextBridge } = require('electron');\ncontextBridge.exposeInMainWorld('keenDesktop', {});\n",
+    'utf8'
+  );
+  await writeFile(
+    join(bundleFixture, 'out/renderer/index.html'),
+    '<!doctype html><html><body><script type="module" src="./assets/app.js"></script></body></html>\n',
+    'utf8'
+  );
+  expectSuccess(
+    runNodeIn(bundleFixture, 'scripts/verify-electron-bundle.mjs'),
+    'sandboxed CommonJS preload bundle verification'
+  );
+  await writeFile(
+    join(bundleFixture, 'out/preload/index.cjs'),
+    "import { contextBridge } from 'electron';\ncontextBridge.exposeInMainWorld('keenDesktop', {});\n",
+    'utf8'
+  );
+  expectFailure(
+    runNodeIn(bundleFixture, 'scripts/verify-electron-bundle.mjs'),
+    /self-contained CommonJS bundle/u,
+    'sandboxed ESM preload rejection'
   );
 
   const correctTag = runNode('scripts/verify-release-tag.mjs', [`v${version}`]);
@@ -482,7 +518,7 @@ try {
   );
   expectFailure(impossibleSigning, /Invalid signing status for linux/u, 'impossible platform signing rejection');
 
-  console.log('Release pipeline self-test PASSED (minimal source-tree fixture, isolated lock/no-lock install plans, Dependabot-safe full-SHA validation, tag/channel and signing guards, collector, 8 packages, 4 manifests, checksums, provenance, manifest identity, tamper and unexpected-input rejection).');
+  console.log('Release pipeline self-test PASSED (minimal source-tree fixture, isolated lock/no-lock install plans, sandboxed CommonJS preload contract, Dependabot-safe full-SHA validation, tag/channel and signing guards, collector, 8 packages, 4 manifests, checksums, provenance, manifest identity, tamper and unexpected-input rejection).');
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
 }

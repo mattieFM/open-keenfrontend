@@ -161,7 +161,7 @@ git push origin HEAD
 git push origin v0.1.0
 ```
 
-Each Release includes eight platform installers/archives, four native-build manifests, `release-manifest.json`, and `SHA256SUMS.txt`. CI resolves one npm lock graph and reuses it across every native runner. The resolved lock is uploaded immediately after installation, even when a later verification step fails. Official GitHub Actions are pinned to immutable commit SHAs. Only an actual pushed `v*` tag can receive optional macOS signing/notarization and Windows Authenticode signing; branch, pull-request, non-version-tag, and manual-dispatch builds are unsigned. See [Build and release automation](docs/RELEASING.md), [the complete Actions behavior](docs/GITHUB_ACTIONS_RELEASES.md), and [the July 24 CI hotfix](docs/CI_HOTFIX_2026-07-24.md).
+Each Release includes eight platform installers/archives, four native-build manifests, `release-manifest.json`, and `SHA256SUMS.txt`. CI resolves one npm lock graph and reuses it across every native runner. The resolved lock is uploaded immediately after installation, even when a later verification step fails. Official GitHub Actions are pinned to immutable commit SHAs. Only an actual pushed `v*` tag can receive optional macOS signing/notarization and Windows Authenticode signing; branch, pull-request, non-version-tag, and manual-dispatch builds are unsigned. See [Build and release automation](docs/RELEASING.md), [the complete Actions behavior](docs/GITHUB_ACTIONS_RELEASES.md), [the source-tracking CI hotfix](docs/CI_HOTFIX_2026-07-24.md), and [the post-Vitest build hotfix](docs/CI_POST_VITEST_HOTFIX_2026-07-24.md).
 
 ## First connection
 
@@ -253,7 +253,7 @@ Reserved mutation variables are documented in [Environment variables](docs/ENVIR
 
 ### Verification result in this environment
 
-The dependency-light core invariants and the current static TypeScript/import/security audit passed. The release workflow and helper scripts were validated locally with parsed YAML, exact tag checks, native-target guards, synthetic eight-package fixtures, manifest tamper/input rejection, and SHA-256 verification. This environment still has no installed project dependencies or lockfile because npm registry access was unavailable, so TypeScript semantic checking, Vitest, ESLint, the Electron/Vite build, Playwright/Axe, real native packaging, a fully successful hosted workflow, and live Keen contracts are **not** reported as executed here. The first hosted run exposed the corrected `.gitignore`/untracked-test issue before packaging.
+The dependency-light core invariants, declaration-aware static TypeScript/import/security audit, release workflow validator, release fixtures, CommonJS preload contract fixture, exact host-approval checks, and connection-page contrast checks pass in this source tree. Hosted runs have independently reached and passed ESLint, the core suite, and Vitest. The latest supplied Actions excerpt ends after Vitest and does not include the first later diagnostic, so this hotfix audits and hardens the entire remaining typecheck/bundle/startup path rather than attributing the failure to an unseen line. This environment still has no installed project dependency graph because npm registry access is unavailable; real TypeScript 5.9 semantic checking, electron-vite output, authentic Electron startup, Playwright/Axe, native packaging, and live Keen contracts remain GitHub-hosted gates.
 
 Read the dated [Revalidation report](docs/REVALIDATION_2026-07-23.md) and [Release checklist](docs/RELEASE_CHECKLIST.md).
 
