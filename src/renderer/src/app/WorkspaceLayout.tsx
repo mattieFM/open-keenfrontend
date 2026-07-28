@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  Activity, BarChart3, Boxes, Building2, Cable, Database, FileDown, Gauge, KeyRound, LayoutDashboard,
+  Activity, BarChart3, Boxes, Building2, Cable, Database, DatabaseBackup, FileDown, Gauge, KeyRound, LayoutDashboard,
   LockKeyhole, LogOut, Menu, PanelLeftClose, PanelLeftOpen, PauseCircle, PlayCircle, Plus, Save, Send, Settings, ShieldAlert, UnlockKeyhole
 } from 'lucide-react';
 import { Badge, Button, Field, Input, Modal } from '../components/ui';
@@ -18,6 +18,7 @@ const NAV = [
   { to: 'dashboards', label: 'Dashboards', icon: LayoutDashboard },
   { to: 'extract', label: 'Extractions', icon: FileDown },
   { to: 'datasets', label: 'Datasets', icon: Database },
+  { to: 'backfill', label: 'Backfill', icon: DatabaseBackup, mutation: true },
   { to: 'events/write', label: 'Event writer', icon: Send, mutation: true },
   { to: 'access-keys', label: 'Access keys', icon: KeyRound, mutation: true },
   { to: 'maintenance', label: 'Maintenance', icon: ShieldAlert, mutation: true },

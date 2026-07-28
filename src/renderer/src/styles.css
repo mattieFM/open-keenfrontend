@@ -567,3 +567,45 @@ tbody tr:hover td { background: #fbfbfe; }
   .streams-toolbar-divider { display: none; }
   .stream-refresh-status { justify-content: space-between; }
 }
+
+/* Guarded retrospective event migrations */
+.backfill-tabs { margin: 16px 0 0; }
+.backfill-steps { margin-top: 14px; }
+.backfill-layout { display: grid; grid-template-columns: minmax(0, 1.22fr) minmax(390px, .78fr); gap: 16px; align-items: start; }
+.backfill-review { position: sticky; top: 84px; min-width: 0; }
+.backfill-schema-tools { display: grid; grid-template-columns: minmax(200px, 1fr) auto; gap: 9px; align-items: end; }
+.backfill-schema-tools .button { margin-bottom: 1px; white-space: nowrap; }
+.backfill-change { overflow: hidden; border: 1px solid var(--ink-200); border-left: 4px solid #75a9c4; border-radius: 8px; background: #fff; }
+.backfill-change__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--ink-100); background: var(--ink-50); }
+.backfill-change__header strong { color: var(--ink-700); font-size: 11px; }
+.backfill-change__grid { display: grid; grid-template-columns: minmax(150px, .85fr) minmax(190px, 1.15fr); gap: 10px; padding: 11px; }
+.backfill-change__value { position: relative; }
+.backfill-change__source-icon { position: absolute; z-index: 1; left: 9px; bottom: 9px; display: grid; color: var(--ink-500); pointer-events: none; }
+.backfill-change__value .input { padding-left: 31px; }
+.backfill-change__options { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 9px 16px; padding: 0 11px 11px; }
+.backfill-change__options .field { min-width: 180px; }
+.backfill-change__options .checkbox { margin-bottom: 9px; }
+.backfill-timestamp { display: grid; grid-template-columns: minmax(170px, .7fr) minmax(220px, 1.3fr); gap: 10px; padding: 12px; border: 1px solid var(--ink-200); border-radius: 8px; background: var(--ink-50); }
+.backfill-backup-proof { display: flex; align-items: flex-start; gap: 11px; padding: 12px; border: 1px solid #afdccc; border-radius: 8px; background: var(--green-100); color: var(--green-700); }
+.backfill-backup-proof > svg { flex: 0 0 auto; margin-top: 1px; }
+.backfill-backup-proof strong, .backfill-backup-proof span, .backfill-backup-proof code { display: block; }
+.backfill-backup-proof span { margin-top: 3px; color: var(--ink-700); font-size: 10px; overflow-wrap: anywhere; }
+.backfill-backup-proof code { margin-top: 5px; color: var(--ink-500); font-size: 9px; overflow-wrap: anywhere; }
+.backfill-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.backfill-stats > div { padding: 9px; border: 1px solid var(--ink-200); border-radius: 7px; background: #fff; }
+.backfill-stats strong, .backfill-stats span { display: block; }
+.backfill-stats strong { color: var(--purple-700); font-size: 16px; }
+.backfill-stats span { margin-top: 2px; color: var(--ink-500); font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
+.backfill-diff-table { max-height: 430px; }
+.backfill-diff-table table { min-width: 650px; }
+.backfill-diff-table td { width: 50%; vertical-align: top; }
+.backfill-diff-table pre { max-height: 230px; overflow: auto; margin: 0; font-size: 9px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.backfill-progress { display: flex; align-items: center; gap: 11px; margin: 14px 0; padding: 10px 12px; border: 1px solid var(--ink-200); border-radius: 8px; background: #fff; }
+.backfill-progress strong, .backfill-progress span { display: block; }
+.backfill-progress strong { font-size: 11px; }
+.backfill-progress span { margin-top: 2px; color: var(--ink-500); font-size: 10px; }
+.backfill-restore-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(360px, .9fr); gap: 16px; margin-top: 16px; align-items: start; }
+.compact-list { margin: 0; padding-left: 18px; color: var(--ink-600); font-size: 11px; line-height: 1.55; }
+.compact-list li + li { margin-top: 3px; }
+@media (max-width: 1120px) { .backfill-layout, .backfill-restore-layout { grid-template-columns: 1fr; } .backfill-review { position: static; } }
+@media (max-width: 720px) { .backfill-change__grid, .backfill-timestamp, .backfill-schema-tools { grid-template-columns: 1fr; } .backfill-stats { grid-template-columns: 1fr 1fr; } }

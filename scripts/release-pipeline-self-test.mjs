@@ -153,7 +153,7 @@ try {
   const originalValidatorWorkflow = await readFile(validatorWorkflowPath, 'utf8');
   await writeFile(
     validatorWorkflowPath,
-    originalValidatorWorkflow.replace(" &&\n       github.actor != 'dependabot[bot]'", ''),
+    originalValidatorWorkflow.replace(/ &&\r?\n       github\.actor != 'dependabot\[bot\]'/u, ''),
     'utf8'
   );
   expectFailure(

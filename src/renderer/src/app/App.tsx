@@ -16,6 +16,7 @@ import { AccessKeysPage } from '../features/accessKeys/AccessKeysPage';
 import { EventWriterPage } from '../features/eventWriter/EventWriterPage';
 import { ExtractionsPage } from '../features/extractions/ExtractionsPage';
 import { MaintenancePage } from '../features/maintenance/MaintenancePage';
+import { BackfillPage } from '../features/backfill/BackfillPage';
 import { DatasetsPage } from '../features/datasets/DatasetsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 
@@ -50,6 +51,7 @@ export function App(): JSX.Element {
           <Route path="access-keys" element={<AccessKeysPage />} />
           <Route path="events/write" element={<EventWriterPage />} />
           <Route path="extract" element={<ExtractionsPage />} />
+          <Route path="backfill" element={<BackfillPage />} />
           <Route path="maintenance" element={<MaintenancePage />} />
           <Route path="datasets" element={<DatasetsPage />} />
           <Route path="settings" element={<SettingsPage />} />
