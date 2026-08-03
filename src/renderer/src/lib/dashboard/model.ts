@@ -1,4 +1,4 @@
-import type { ChartWidget, DashboardDocument, DashboardWidget, DateRangeWidget, FilterWidget, ImageWidget, QueryDraft, TextWidget } from '@shared/types';
+import type { ChartWidget, DashboardDocument, DashboardWidget, DateRangeWidget, FilterWidget, ImageWidget, KeenTimeframe, QueryDraft, TextWidget } from '@shared/types';
 
 const PALETTE = ['#6f5bd3', '#13b98a', '#2873d6', '#ef9f32', '#d94b72', '#3aa6a0', '#8b6fd9'];
 
@@ -24,13 +24,13 @@ export function createDashboard(workspaceId: string, title = 'Untitled dashboard
 export function defaultWidget(type: DashboardWidget['type']): DashboardWidget {
   const id = crypto.randomUUID();
   if (type === 'chart') {
-    const query: QueryDraft = { analysis_type: 'count', event_collection: 'purchases', timeframe: 'this_14_days', interval: 'daily', include_metadata: true };
-    return { id, type, title: 'New chart', subtitle: '', source: { kind: 'ad-hoc', query }, chartType: 'line' } satisfies ChartWidget;
+    const query: QueryDraft = { analysis_type: 'count', event_collection: '', timeframe: 'this_30_days', interval: 'daily', include_metadata: true, zero_fill: true, filters: [] };
+    return { id, type, title: 'New chart', subtitle: '', source: { kind: 'ad-hoc', query }, chartType: 'line', valueFormat: 'number', showTableFallback: true } satisfies ChartWidget;
   }
   if (type === 'text') return { id, type, markdown: '## Add context\n\nExplain what this dashboard shows.' } satisfies TextWidget;
   if (type === 'image') return { id, type, url: '', alt: '', fit: 'contain', caption: '' } satisfies ImageWidget;
-  if (type === 'filter') return { id, type, title: 'Filter', eventCollection: 'purchases', propertyName: 'country', targetWidgetIds: [], options: ['CA', 'US'], selected: [] } satisfies FilterWidget;
-  return { id, type, title: 'Date range', targetWidgetIds: [], timeframe: 'this_14_days', timezone: 'UTC' } satisfies DateRangeWidget;
+  if (type === 'filter') return { id, type, title: 'Filter', eventCollection: '', propertyName: '', targetWidgetIds: [], options: [], selected: [], selectionMode: 'single', allowSearch: true, optionSource: 'manual' } satisfies FilterWidget;
+  return { id, type, title: 'Date range', targetWidgetIds: [], timeframe: 'this_30_days', timezone: 'UTC' } satisfies DateRangeWidget;
 }
 
 export function addWidget(document: DashboardDocument, widget: DashboardWidget): DashboardDocument {
@@ -78,7 +78,7 @@ export function migrateDashboard(value: unknown, workspaceId?: string): Dashboar
     schemaVersion: 1,
     id: record.id ?? crypto.randomUUID(),
     workspaceId: workspaceId ?? record.workspaceId ?? 'imported',
-    widgets: record.widgets as DashboardWidget[],
+    widgets: (record.widgets as DashboardWidget[]).map((widget) => widget.type === 'chart' ? { valueFormat: 'number', showTableFallback: true, ...widget } : widget.type === 'filter' ? { selectionMode: 'single', allowSearch: true, optionSource: 'manual', ...widget } : widget),
     layout: record.layout,
     settings: { ...base.settings, ...(record.settings ?? {}) },
     theme: { ...base.theme, ...(record.theme ?? {}) },
@@ -89,7 +89,7 @@ export function migrateDashboard(value: unknown, workspaceId?: string): Dashboar
   };
 }
 
-export function runtimeQuery(document: DashboardDocument, chart: ChartWidget, filterSelections: Record<string, string[]>, dateRanges: Record<string, string>): QueryDraft | undefined {
+export function runtimeQuery(document: DashboardDocument, chart: ChartWidget, filterSelections: Record<string, string[]>, dateRanges: Record<string, KeenTimeframe | undefined>): QueryDraft | undefined {
   if (chart.source.kind !== 'ad-hoc') return undefined;
   const query = structuredClone(chart.source.query);
   const filters = [...(query.filters ?? [])];
@@ -102,8 +102,10 @@ export function runtimeQuery(document: DashboardDocument, chart: ChartWidget, fi
   query.filters = filters;
   const dateWidget = document.widgets.find((widget): widget is DateRangeWidget => widget.type === 'date-range' && widget.targetWidgetIds.includes(chart.id));
   if (dateWidget) {
-    query.timeframe = dateRanges[dateWidget.id] ?? dateWidget.timeframe;
-    query.timezone = dateWidget.timezone;
+    const timeframe = dateRanges[dateWidget.id] ?? dateWidget.timeframe;
+    query.timeframe = timeframe;
+    if (typeof timeframe === 'object') delete query.timezone;
+    else query.timezone = dateWidget.timezone;
   }
   return query;
 }

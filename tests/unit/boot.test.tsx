@@ -18,9 +18,13 @@ describe('boot connection experience', () => {
     const schemaTestToggle = screen.getByRole('checkbox', {
       name: /Test read-only schema access after saving/i
     });
+    const autoDashboardToggle = screen.getByRole('checkbox', {
+      name: /Create dashboards automatically for every stream/i
+    });
 
     expect(credentialInput).toBeInTheDocument();
     expect(schemaTestToggle).toBeDisabled();
+    expect(autoDashboardToggle).toBeDisabled();
     expect(
       screen.getByRole('button', { name: /Save workspace without test/i })
     ).toBeInTheDocument();
@@ -30,6 +34,8 @@ describe('boot connection experience', () => {
     });
 
     expect(schemaTestToggle).toBeEnabled();
+    expect(autoDashboardToggle).toBeEnabled();
+    expect(autoDashboardToggle).toBeChecked();
     expect(
       screen.getByRole('button', {
         name: /Save workspace and test schema access/i

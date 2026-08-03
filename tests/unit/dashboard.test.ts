@@ -21,7 +21,12 @@ describe('dashboard runtime and sharing policy', () => {
     const patched = runtimeQuery(document, chart, { filter: ['CA', 'US'] }, { date: 'previous_1_days' });
     expect(patched?.filters).toHaveLength(2);
     expect(patched?.timeframe).toBe('previous_1_days');
+    expect(patched?.timezone).toBe('UTC');
     expect(chart.source.kind === 'ad-hoc' && chart.source.query.filters).toHaveLength(1);
+
+    const absolute = runtimeQuery(document, chart, {}, { date: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' } });
+    expect(absolute?.timeframe).toEqual({ start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' });
+    expect(absolute).not.toHaveProperty('timezone');
   });
 
   it('requires enforced filters for public ad-hoc charts and allow-lists saved names', () => {

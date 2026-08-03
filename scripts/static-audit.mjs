@@ -138,6 +138,12 @@ const electronViteConfig = readFileSync(join(root, 'electron.vite.config.ts'), '
 const vitestConfig = readFileSync(join(root, 'vitest.config.ts'), 'utf8');
 const bundleVerifier = readFileSync(join(root, 'scripts/verify-electron-bundle.mjs'), 'utf8');
 const rendererStyles = readFileSync(join(root, 'src/renderer/src/styles.css'), 'utf8');
+const dashboardEditor = readFileSync(join(root, 'src/renderer/src/features/dashboards/DashboardEditorPage.tsx'), 'utf8');
+const dashboardWidgetEditor = readFileSync(join(root, 'src/renderer/src/features/dashboards/WidgetEditorModal.tsx'), 'utf8');
+const dashboardQueryBuilder = readFileSync(join(root, 'src/renderer/src/features/dashboards/DashboardQueryBuilder.tsx'), 'utf8');
+const dashboardCanvas = readFileSync(join(root, 'src/renderer/src/features/dashboards/DashboardCanvas.tsx'), 'utf8');
+const dashboardModel = readFileSync(join(root, 'src/renderer/src/lib/dashboard/model.ts'), 'utf8');
+const automaticDashboard = readFileSync(join(root, 'src/renderer/src/lib/dashboard/autoDashboard.ts'), 'utf8');
 const desktopBridgeDeclarationPath = join(root, 'src/preload/global.d.ts');
 const legacyDesktopBridgeDeclarationPath = join(root, 'src/preload/index.d.ts');
 const desktopBridgeDeclaration = existsSync(desktopBridgeDeclarationPath)
@@ -191,6 +197,12 @@ const invariants = {
   sandboxedCommonJsPreload: /format:\s*'cjs'/u.test(electronViteConfig) && /entryFileNames:\s*'\[name\]\.cjs'/u.test(electronViteConfig) && /preload\/index\.cjs/u.test(electronMain) && /Sandboxed preload must be a self-contained CommonJS bundle/u.test(bundleVerifier),
   vitestUsesIndependentTsxTransform: !/@vitejs\/plugin-react/u.test(vitestConfig) && !/plugins:\s*\[\s*react\(\)/u.test(vitestConfig),
   bootColorContrast: Boolean(mutedInk && primaryGreen) && contrastRatio(mutedInk, '#ffffff') >= 4.5 && contrastRatio(primaryGreen, '#ffffff') >= 4.5,
+  visualDashboardAuthoring: /<DashboardQueryBuilder/u.test(dashboardWidgetEditor) && /<FilterBuilder/u.test(dashboardEditor) && !/Mandatory query filters JSON/u.test(dashboardEditor) && !/query JSON editor/iu.test(dashboardWidgetEditor),
+  automaticSessionDashboards: ['session_start', 'session_end', 'session.sessionId', 'session.eventId', 'session.machineId', 'session.gameId', 'session.status', 'session.dwellMs', 'session.result', 'sessionEventDashboard'].every((token) => automaticDashboard.includes(token)),
+  automaticDashboardLiveFilters: /filterOptionState/u.test(automaticDashboard) && /contentFingerprint/u.test(automaticDashboard) && /\['session\.eventId', 'session\.machineId', 'session\.gameId'\]/u.test(automaticDashboard) && /analysis_type: 'select_unique'/u.test(automaticDashboard),
+  dashboardAbsoluteDatesOmitTimezone: /typeof timeframe === 'object'\) delete query\.timezone/u.test(dashboardModel) && /T00:00:00\.000Z/u.test(dashboardCanvas),
+  guidedDashboardFiltersAndTimeframes: /<FilterBuilder/u.test(dashboardQueryBuilder) && /<TimeframePicker/u.test(dashboardQueryBuilder) && /<FunnelBuilder/u.test(dashboardQueryBuilder) && /<MultiAnalysisBuilder/u.test(dashboardQueryBuilder),
+  connectCreatesAutomaticDashboards: /Create dashboards automatically for every stream/u.test(connect) && /syncAutomaticDashboards/u.test(connect),
   connectHeroTextContrast: [
     '.connect-brand span { color: #fff;',
     '.connect-hero__copy p { font-size: 16px; line-height: 1.7; color: #fff;',

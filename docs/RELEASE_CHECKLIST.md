@@ -1,6 +1,6 @@
 # Release Checklist
 
-**Snapshot:** 2026-07-24
+**Snapshot:** 2026-07-31
 
 ## Executed in this environment
 
@@ -23,8 +23,13 @@
 - [x] Renderer host approval is implemented in the main process and enforced on every native API request.
 - [x] Sandboxed preload output is one verified CommonJS `index.cjs` bundle; ESM preload output is rejected.
 - [x] Connection-page muted, primary-action, and gradient text meet the automated contrast floor.
+- [x] Dashboard authoring provides visual controls for query source, analysis, timeframe, nested filters, funnels, multi-analysis, grouping, ordering, formatting, and chart/table selection without requiring JSON.
+- [x] Automatic dashboards use deterministic IDs and create a stream overview plus per-event-type views.
+- [x] The supplied session contract produces separate overview, `session_start`, and `session_end` dashboards with status, dwell, result, machine, game, event, and conversion analytics where fields exist.
+- [x] Normal automatic sync preserves customized dashboards; template refresh requires explicit confirmation.
+- [x] Nested schemas are flattened to Keen dot paths before template matching.
 - [x] Dependency-light core self-test passed.
-- [x] Static audit passed across 64 executable TypeScript/TSX files, 2 declaration files, and 77 scanned text/code files.
+- [x] Static audit passed across 84 executable TypeScript/TSX files, 2 declaration files, and 97 scanned text/code files.
 - [x] TypeScript syntax transpilation reported zero diagnostics.
 - [x] Internal TypeScript module-resolution check reported zero missing imports.
 - [x] Renderer source reported zero Node built-in imports and zero plaintext web-storage paths.
@@ -63,7 +68,7 @@ The configured npm gateway returned HTTP 503 and the public npm registry could n
 
 ## Product parity sign-off
 
-- [ ] Every nested Explorer/filter/funnel property selector is schema-driven and type-aware, with manual fallback.
+- [x] Dashboard filter/funnel property selectors are schema-assisted with manual fallback; Explorer remains API-shaped and forward-compatible.
 - [ ] Choropleth has an explicit reviewed GeoJSON mapping.
 - [ ] SVG export is implemented or documented as intentionally excluded for release.
 - [x] Saved-query display-name/tag search, tag/cache filters, observed-date sorting, and full-definition clone are present in source.

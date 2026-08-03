@@ -50,6 +50,10 @@ export type WorkspaceRecord = {
     queryConcurrency: number;
     includeSchemaOnStreamList: boolean;
     dashboardPersistence: 'local' | 'keen-service' | 'hybrid';
+    autoDashboards?: boolean;
+    autoDashboardTimeframe?: string;
+    autoDashboardEventTypeProperty?: string;
+    autoDashboardLastSync?: string;
   };
   demo?: boolean;
   createdAt: string;
@@ -194,6 +198,8 @@ export type ChartWidget = {
   subtitle?: string;
   source: { kind: 'ad-hoc'; query: QueryDraft } | { kind: 'saved'; name: string };
   chartType: ChartType;
+  valueFormat?: 'number' | 'compact' | 'duration-ms' | 'percent';
+  showTableFallback?: boolean;
   credentialId?: string;
   unknown?: Record<string, unknown>;
 };
@@ -223,6 +229,9 @@ export type FilterWidget = {
   targetWidgetIds: string[];
   options: string[];
   selected: string[];
+  selectionMode?: 'single' | 'multiple';
+  allowSearch?: boolean;
+  optionSource?: 'manual' | 'query';
 };
 
 export type DateRangeWidget = {

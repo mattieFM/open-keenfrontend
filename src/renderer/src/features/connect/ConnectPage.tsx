@@ -8,6 +8,10 @@ import { useWorkspaceStore } from '../../lib/db/workspaceStore';
 import { maskSecret } from '../../lib/security/redact';
 import { storeCredential } from '../../lib/vault/credentialVault';
 import { KeenClient } from '../../lib/api/KeenClient';
+import { db } from '../../lib/db/database';
+import { buildAutomaticDashboards, syncAutomaticDashboards } from '../../lib/dashboard/autoDashboard';
+import { demoCollections } from '../../lib/demo/fixtures';
+import { parseCollectionList } from '../../lib/schema/collections';
 
 const DEFAULT_ANALYTICS = 'https://api.keen.io/3.0';
 const DEFAULT_DASHBOARD = 'https://dashboard-service.k-n.io';
@@ -23,6 +27,7 @@ export function ConnectPage(): JSX.Element {
   const navigate = useNavigate();
   const workspaces = useWorkspaceStore((state) => state.workspaces);
   const createWorkspace = useWorkspaceStore((state) => state.createWorkspace);
+  const updateWorkspace = useWorkspaceStore((state) => state.updateWorkspace);
   const setCapability = useWorkspaceStore((state) => state.setCapability);
   const [localName, setLocalName] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -35,6 +40,7 @@ export function ConnectPage(): JSX.Element {
   const [passphrase, setPassphrase] = useState('');
   const [credentials, setCredentials] = useState<CredentialInput[]>([newCredential('read')]);
   const [safeTest, setSafeTest] = useState(true);
+  const [autoDashboards, setAutoDashboards] = useState(true);
   const [testCredentialId, setTestCredentialId] = useState(credentials[0]?.id ?? '');
   const [savedWorkspaceId, setSavedWorkspaceId] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
@@ -104,7 +110,10 @@ export function ConnectPage(): JSX.Element {
           defaultTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           queryConcurrency: 4,
           includeSchemaOnStreamList: false,
-          dashboardPersistence: 'local'
+          dashboardPersistence: 'local',
+          autoDashboards,
+          autoDashboardTimeframe: 'this_30_days',
+          autoDashboardEventTypeProperty: 'eventType'
         },
         createdAt: now,
         updatedAt: now
@@ -121,9 +130,29 @@ export function ConnectPage(): JSX.Element {
         const testCredential = metadata[credentialIndex];
         if (!testCredential) throw new Error('The selected schema-test credential is no longer available.');
         try {
-          await new KeenClient(workspace, 'read-only').listCollections(testCredential, false);
+          const readOnlyClient = new KeenClient(workspace, 'read-only');
+          await readOnlyClient.listCollections(testCredential, false);
           await setCapability(id, 'schema.read', 'allowed');
-          setResult({ tone: 'success', message: 'Workspace saved. The selected key was accepted for the read-only schema test.' });
+          let automaticMessage = '';
+          if (autoDashboards) {
+            try {
+              const summary = await syncAutomaticDashboards({
+                workspace,
+                client: readOnlyClient,
+                schemaCredential: testCredential,
+                queryCredential: testCredential
+              });
+              const syncedAt = new Date().toISOString();
+              await updateWorkspace(id, {
+                preferences: { ...workspace.preferences, autoDashboardLastSync: syncedAt }
+              });
+              automaticMessage = ` ${summary.created} automatic dashboard${summary.created === 1 ? '' : 's'} were created from ${summary.streams} stream${summary.streams === 1 ? '' : 's'}, with ${summary.filterOptionSetsLoaded} live filter option set${summary.filterOptionSetsLoaded === 1 ? '' : 's'} loaded.`;
+              if (summary.warnings.length) automaticMessage += ` ${summary.warnings.length} optional discovery warning${summary.warnings.length === 1 ? '' : 's'} can be reviewed from the Dashboards page.`;
+            } catch (automaticError) {
+              automaticMessage = ` The workspace is connected, but automatic dashboard setup could not finish: ${automaticError instanceof Error ? automaticError.message : String(automaticError)}`;
+            }
+          }
+          setResult({ tone: 'success', message: `Workspace saved. The selected key was accepted for the read-only schema test.${automaticMessage}` });
         } catch (error) {
           const status = (error as { status?: number }).status;
           if (status === 403) await setCapability(id, 'schema.read', 'denied');
@@ -152,13 +181,31 @@ export function ConnectPage(): JSX.Element {
       dashboardServiceEnabled: false,
       credentials: [{ id: crypto.randomUUID(), workspaceId: id, label: 'Synthetic read key', type: 'read', storageMode: 'memory', hint: 'demo••••data', createdAt: now }],
       capabilities: { 'schema.read': 'allowed', 'query.run': 'allowed', 'saved.result.read': 'allowed', 'dataset.read': 'allowed' },
-      preferences: { defaultTimezone: 'UTC', queryConcurrency: 4, includeSchemaOnStreamList: false, dashboardPersistence: 'local' },
+      preferences: { defaultTimezone: 'UTC', queryConcurrency: 4, includeSchemaOnStreamList: false, dashboardPersistence: 'local', autoDashboards: true, autoDashboardTimeframe: 'this_30_days', autoDashboardEventTypeProperty: 'eventType', autoDashboardLastSync: now },
       demo: true,
       createdAt: now,
       updatedAt: now
     };
     await createWorkspace(workspace);
-    navigate(`/w/${id}`);
+    const demoDashboards = buildAutomaticDashboards(
+      id,
+      parseCollectionList(demoCollections),
+      { slack_stream: ['session_start', 'session_end'] },
+      {
+        eventTypeProperty: 'eventType',
+        timeframe: 'this_30_days',
+        timezone: 'UTC',
+        dimensionValues: {
+          slack_stream: {
+            'session.eventId': ['Builders Lab'],
+            'session.machineId': ['tablet-01', 'tablet-02', 'tablet-03', 'tablet-04'],
+            'session.gameId': ['word-grid', 'reaction-race', 'memory-match']
+          }
+        }
+      }
+    );
+    await db.dashboards.bulkPut(demoDashboards);
+    navigate(`/w/${id}/dashboards`);
   };
 
   return (
@@ -231,6 +278,7 @@ export function ConnectPage(): JSX.Element {
             <section className="connection-section">
               <div className="connection-section__title"><span className="section-number">4</span><Eye size={18} /><h2>Connection test</h2></div>
               <label className="checkbox-row"><input type="checkbox" checked={safeTest} disabled={!canTestSchema} onChange={(event) => setSafeTest(event.target.checked)} /><span><strong>Test read-only schema access after saving</strong><br /><span className="muted small">No query, write, key-management, or mutation endpoint is probed.</span></span></label>
+              <label className="checkbox-row" style={{ marginTop: 10 }}><input type="checkbox" checked={autoDashboards} disabled={!canTestSchema || !safeTest} onChange={(event) => setAutoDashboards(event.target.checked)} /><span><strong>Create dashboards automatically for every stream</strong><br /><span className="muted small">After the safe test succeeds, the app reads schemas and may run bounded <code>select_unique</code> analyses to discover event types. Matching session streams receive dedicated start, end, status, duration, game, machine, event, result, and conversion views.</span></span></label>
               {canTestSchema ? <div style={{ marginTop: 12 }}><Field label="Credential used for the safe test" hint="The app will not silently retry with a broader key if this credential is denied."><Select value={selectedTestCredential?.id ?? ''} onChange={(event) => setTestCredentialId(event.target.value)}>{schemaTestCandidates.map((credential) => <option key={credential.id} value={credential.id}>{credential.label} · {credential.type}</option>)}</Select></Field></div> : <Callout tone="warning">Add a Read, restricted Access, or Master key to enable the optional schema test. A Write-only workspace can still be saved without it.</Callout>}
             </section>
 

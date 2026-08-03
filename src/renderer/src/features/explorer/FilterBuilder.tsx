@@ -41,9 +41,17 @@ function valueText(filter: NormalFilter): string {
 
 function FilterRow({ filter, onChange, onRemove, depth }: { filter: NormalFilter; onChange(filter: NormalFilter): void; onRemove(): void; depth: number }): JSX.Element {
   const operator = String(filter.operator ?? 'eq');
-  const needsStructured = operator === 'within';
+  const geo = operator === 'within' && filter.property_value && typeof filter.property_value === 'object'
+    ? filter.property_value as { coordinates?: unknown; max_distance_miles?: unknown; max_distance_km?: unknown }
+    : undefined;
+  const coordinates = Array.isArray(geo?.coordinates) ? geo.coordinates : [0, 0];
+  const setGeo = (index: 0 | 1, value: string) => {
+    const next = [...coordinates];
+    next[index] = Number(value);
+    onChange({ ...filter, property_value: { coordinates: next, max_distance_miles: Number(geo?.max_distance_miles ?? 10) } });
+  };
   return (
-    <div className="filter-row" style={{ marginLeft: depth * 12 }}>
+    <div className={`filter-row ${operator === 'within' ? 'filter-row--geo' : ''}`} style={{ marginLeft: depth * 12 }}>
       <Input list="explorer-property-options" aria-label="Filter property" placeholder="customer.id" value={String(filter.property_name ?? '')} onChange={(event) => onChange({ ...filter, property_name: event.target.value })} />
       <Select aria-label="Filter operator" value={operator} onChange={(event) => {
         const nextOperator = event.target.value;
@@ -59,8 +67,12 @@ function FilterRow({ filter, onChange, onRemove, depth }: { filter: NormalFilter
         <Select aria-label="Exists value" value={String(Boolean(filter.property_value))} onChange={(event) => onChange({ ...filter, property_value: event.target.value === 'true' })}>
           <option value="true">exists</option><option value="false">does not exist</option>
         </Select>
-      ) : (
-        <Input aria-label="Filter value" className={needsStructured ? 'mono' : ''} placeholder={operator === 'in' ? 'CA, US' : needsStructured ? '{"coordinates":[-79,43],"max_distance_miles":10}' : 'value'} value={valueText(filter)} onChange={(event) => onChange({ ...filter, property_value: parseValue(operator, event.target.value, filter.property_value) })} />
+      ) : operator === 'within' ? <div className="geo-filter-fields">
+        <Input aria-label="Longitude" type="number" step="any" value={String(coordinates[0] ?? 0)} onChange={(event) => setGeo(0, event.target.value)} placeholder="Longitude" />
+        <Input aria-label="Latitude" type="number" step="any" value={String(coordinates[1] ?? 0)} onChange={(event) => setGeo(1, event.target.value)} placeholder="Latitude" />
+        <Input aria-label="Maximum distance in miles" type="number" min="0" step="any" value={String(geo?.max_distance_miles ?? 10)} onChange={(event) => onChange({ ...filter, property_value: { coordinates, max_distance_miles: Number(event.target.value) } })} placeholder="Miles" />
+      </div> : (
+        <Input aria-label="Filter value" placeholder={operator === 'in' ? 'CA, US' : 'value'} value={valueText(filter)} onChange={(event) => onChange({ ...filter, property_value: parseValue(operator, event.target.value, filter.property_value) })} />
       )}
       <IconButton label="Remove filter" onClick={onRemove}><Trash2 size={15} /></IconButton>
     </div>

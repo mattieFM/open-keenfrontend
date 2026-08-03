@@ -16,7 +16,8 @@ Every private launch opens the connection screen, not the last project page. It 
 - one or more explicitly typed Read, Write, Master, Access, or Organization keys;
 - credential storage mode;
 - optional Organization ID;
-- optional safe read-only schema test.
+- optional safe read-only schema test;
+- optional read-only creation of automatic local dashboards for every discovered stream and event type.
 
 Every workspace starts in **read-only mode on every boot**. To permit any remote event write, resource mutation, key operation, dashboard publish, dataset change, Organization change, or maintenance request for that launch, the user must type:
 
@@ -36,8 +37,9 @@ The source includes:
 - scalar/group/interval/record/funnel/multi-analysis normalization;
 - metric, gauge, line, area, bar, pie, donut, funnel, heatmap, bubble, and table output with textual/table fallbacks and PNG/CSV/JSON export;
 - known-name saved-query result access plus Master-key definition management;
-- local-first dashboards with chart, safe Markdown, HTTPS image, string-filter, and date-range widgets;
-- pointer and keyboard dashboard layout controls, local autosave/undo/import/export, and optional source-observed remote persistence;
+- a complete visual dashboard studio with guided chart queries, nested filters, funnels, multi-analysis, timeframes, saved-query sources, chart formatting, safe Markdown, HTTPS image, string-filter, and date-range widgets—ordinary dashboard authoring requires no JSON;
+- automatic local dashboards for every stream and discovered event type, including dedicated `slack_stream` session overview, `session_start`, and `session_end` templates for the documented `session.*` fields;
+- pointer and keyboard dashboard layout controls, themes, local autosave/undo/import/export, protected template refresh, and optional source-observed remote persistence;
 - Access Key list/create/edit/clone-policy/revoke/unrevoke/delete flows and least-privilege templates;
 - single/bulk event writer with JSON/NDJSON/CSV import, payload limits, partial-item status display, and zero automatic write retry;
 - synchronous and email extraction workflows;
@@ -200,6 +202,14 @@ A Write-only key cannot pass that read test, but it can still be saved for Event
 | Organization project operations | Organization Key only |
 
 The selected credential is visible per module. A denied restricted key is never silently replaced with Master.
+
+## Automatic dashboards and no-JSON authoring
+
+After a successful safe schema test, the connection wizard can create local dashboards automatically. Each stream receives an overview, each discovered `eventType` receives a focused dashboard, and recognized session streams receive automatically populated Event, Machine, and Game filter choices from bounded read-only unique-value queries. A stream containing `session.sessionId`, `session.eventId`, `session.machineId`, and `session.gameId` receives specialized session analytics. Optional `session.status`, `session.dwellMs`, and `session.result` fields add completion, abandonment, duration, and result widgets.
+
+Automatic sync uses stable IDs. Normal sync creates missing dashboards and upgrades only untouched generated documents when their schema, template, timeframe, or live filter choices change. Customized automatic dashboards are preserved; the explicit **Refresh automatic** action warns before rebuilding them.
+
+Chart queries, timeframes, nested filters, funnels, multi-analysis, grouping, ordering, saved-query linkage, visualization, formatting, filter/date connections, themes, and layout are edited through guided controls. JSON remains only as the portable dashboard import/export representation, not an authoring requirement. See [Automatic dashboards](docs/AUTOMATIC_DASHBOARDS.md) and [validation report](docs/DASHBOARD_AUTOMATION_VALIDATION_2026-07-31.md).
 
 ## Dashboard persistence and public viewers
 
