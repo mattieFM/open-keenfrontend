@@ -57,23 +57,23 @@ export async function storeCredential(
   memorySecrets.set(meta.id, value.trim());
   if (mode === "plaintext") {
     const record: EncryptedSecretRecord = {
-     id: meta.id,
+      id: meta.id,
       workspaceId: meta.workspaceId,
-     algorithm: "none",
+      algorithm: "none",
       kdf: "none",
       iterations: 0,
       salt: "",
-     iv: "",
+      iv: "",
       ciphertext: value.trim(),
       createdAt: new Date().toISOString(),
-   };
-   await db.secrets.put(record);
+    };
+    await db.secrets.put(record);
     return;
   }
- if (mode !== "encrypted") {
+  if (mode !== "encrypted") {
     await db.secrets.delete(meta.id);
-   return;
- }
+    return;
+  }
   if (!passphrase || passphrase.length < 10)
     throw new Error(
       "Encrypted storage requires a passphrase of at least 10 characters.",
@@ -104,11 +104,10 @@ export async function storeCredential(
 
 export async function unlockCredential(
   id: string,
- passphrase?: string,
+  passphrase?: string,
 ): Promise<void> {
- const record = await db.secrets.get(id);
- if (!record)
-    throw new Error("No credential is stored for this key.");
+  const record = await db.secrets.get(id);
+  if (!record) throw new Error("No credential is stored for this key.");
   if (record.algorithm === "none") {
     memorySecrets.set(id, record.ciphertext);
     return;
@@ -120,26 +119,26 @@ export async function unlockCredential(
       passphrase,
       fromBase64(record.salt),
       record.iterations,
-   );
-   const plaintext = await crypto.subtle.decrypt(
+    );
+    const plaintext = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: fromBase64(record.iv) },
-     key,
-     fromBase64(record.ciphertext),
+      key,
+      fromBase64(record.ciphertext),
     );
     memorySecrets.set(id, decoder.decode(plaintext));
   } catch {
     throw new Error(
-     "The passphrase is incorrect or the encrypted credential is damaged.",
-   );
- }
+      "The passphrase is incorrect or the encrypted credential is damaged.",
+    );
+  }
 }
 export async function restorePlaintextCredentials(): Promise<number> {
- const all = await db.secrets.toArray();
+  const all = await db.secrets.toArray();
   let restored = 0;
   for (const record of all) {
-   if (record.algorithm === "none") {
+    if (record.algorithm === "none") {
       memorySecrets.set(record.id, record.ciphertext);
-     restored += 1;
+      restored += 1;
     }
   }
   return restored;

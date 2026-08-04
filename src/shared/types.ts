@@ -1,29 +1,34 @@
-export type CredentialType = 'read' | 'write' | 'master' | 'access' | 'organization';
-export type StorageMode = 'memory' | 'session' | 'encrypted' | 'plaintext';
-export type CapabilityState = 'unknown' | 'allowed' | 'denied';
-export type RuntimeMode = 'read-only' | 'changes-enabled';
+export type CredentialType =
+  | "read"
+  | "write"
+  | "master"
+  | "access"
+  | "organization";
+export type StorageMode = "memory" | "session" | "encrypted" | "plaintext";
+export type CapabilityState = "unknown" | "allowed" | "denied";
+export type RuntimeMode = "read-only" | "changes-enabled";
 export type ConfidenceClass =
-  | 'documented-api'
-  | 'documented-ui'
-  | 'source-observed'
-  | 'local'
-  | 'organization'
-  | 'hosted-only';
+  | "documented-api"
+  | "documented-ui"
+  | "source-observed"
+  | "local"
+  | "organization"
+  | "hosted-only";
 
 export type Operation =
-  | 'schema.read'
-  | 'query.run'
-  | 'saved.result.read'
-  | 'saved.definition.read'
-  | 'saved.manage'
-  | 'dashboard.read'
-  | 'dashboard.manage'
-  | 'event.write'
-  | 'accessKey.manage'
-  | 'maintenance'
-  | 'dataset.read'
-  | 'dataset.manage'
-  | 'organization.manage';
+  | "schema.read"
+  | "query.run"
+  | "saved.result.read"
+  | "saved.definition.read"
+  | "saved.manage"
+  | "dashboard.read"
+  | "dashboard.manage"
+  | "event.write"
+  | "accessKey.manage"
+  | "maintenance"
+  | "dataset.read"
+  | "dataset.manage"
+  | "organization.manage";
 
 export type CredentialMeta = {
   id: string;
@@ -49,7 +54,7 @@ export type WorkspaceRecord = {
     defaultTimezone: string;
     queryConcurrency: number;
     includeSchemaOnStreamList: boolean;
-    dashboardPersistence: 'local' | 'keen-service' | 'hybrid';
+    dashboardPersistence: "local" | "keen-service" | "hybrid";
     autoDashboards?: boolean;
     autoDashboardTimeframe?: string;
     autoDashboardEventTypeProperty?: string;
@@ -60,7 +65,7 @@ export type WorkspaceRecord = {
   updatedAt: string;
 };
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'HEAD';
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "HEAD";
 
 export type ApiRequestPayload = {
   requestId: string;
@@ -70,7 +75,7 @@ export type ApiRequestPayload = {
   authorization?: string;
   headers?: Record<string, string>;
   body?: string;
-  responseType?: 'text' | 'arrayBuffer';
+  responseType?: "text" | "arrayBuffer";
   timeoutMs?: number;
 };
 
@@ -85,7 +90,14 @@ export type ApiBridgeResponse = {
 
 export type ApiBridgeResult =
   | { ok: true; response: ApiBridgeResponse }
-  | { ok: false; error: { kind: 'network' | 'abort' | 'validation'; message: string; retryable: boolean } };
+  | {
+      ok: false;
+      error: {
+        kind: "network" | "abort" | "validation";
+        message: string;
+        retryable: boolean;
+      };
+    };
 
 export type RedactedRequest = {
   method: HttpMethod;
@@ -96,7 +108,7 @@ export type RedactedRequest = {
 };
 
 export type KeenApiError = {
-  kind: 'network' | 'cors' | 'abort' | 'http' | 'parse' | 'validation';
+  kind: "network" | "cors" | "abort" | "http" | "parse" | "validation";
   status?: number;
   errorCode?: string;
   message: string;
@@ -125,7 +137,7 @@ export type NormalFilter = {
 };
 
 export type OrFilter = {
-  operator: 'or';
+  operator: "or";
   operands: KeenFilter[];
   [key: string]: unknown;
 };
@@ -151,8 +163,12 @@ export type QueryDraft = {
   timeframe?: KeenTimeframe;
   timezone?: string | number;
   filters?: KeenFilter[];
-  group_by?: string | string[] | Record<string, unknown> | Array<string | Record<string, unknown>>;
-  order_by?: Array<{ property_name: string; direction?: 'ASC' | 'DESC' }>;
+  group_by?:
+    | string
+    | string[]
+    | Record<string, unknown>
+    | Array<string | Record<string, unknown>>;
+  order_by?: Array<{ property_name: string; direction?: "ASC" | "DESC" }>;
   limit?: number;
   interval?: string;
   zero_fill?: boolean;
@@ -168,37 +184,39 @@ export type QueryDraft = {
 };
 
 export type ChartType =
-  | 'metric'
-  | 'table'
-  | 'line'
-  | 'area'
-  | 'bar'
-  | 'pie'
-  | 'donut'
-  | 'funnel'
-  | 'gauge'
-  | 'heatmap'
-  | 'bubble'
-  | 'choropleth';
+  | "metric"
+  | "table"
+  | "line"
+  | "area"
+  | "bar"
+  | "pie"
+  | "donut"
+  | "funnel"
+  | "gauge"
+  | "heatmap"
+  | "bubble"
+  | "choropleth";
 
 export type SemanticResult =
-  | { kind: 'scalar'; value: number | string | boolean | null }
-  | { kind: 'grouped'; rows: Array<Record<string, unknown>> }
-  | { kind: 'interval'; rows: Array<Record<string, unknown>> }
-  | { kind: 'records'; rows: Array<Record<string, unknown>> }
-  | { kind: 'unique'; values: unknown[] }
-  | { kind: 'funnel'; values: number[] }
-  | { kind: 'multi'; values: Record<string, unknown> }
-  | { kind: 'unknown'; value: unknown };
+  | { kind: "scalar"; value: number | string | boolean | null }
+  | { kind: "grouped"; rows: Array<Record<string, unknown>> }
+  | { kind: "interval"; rows: Array<Record<string, unknown>> }
+  | { kind: "records"; rows: Array<Record<string, unknown>> }
+  | { kind: "unique"; values: unknown[] }
+  | { kind: "funnel"; values: number[] }
+  | { kind: "multi"; values: Record<string, unknown> }
+  | { kind: "unknown"; value: unknown };
 
 export type ChartWidget = {
   id: string;
-  type: 'chart';
+  type: "chart";
   title: string;
   subtitle?: string;
-  source: { kind: 'ad-hoc'; query: QueryDraft } | { kind: 'saved'; name: string };
+  source:
+    | { kind: "ad-hoc"; query: QueryDraft }
+    | { kind: "saved"; name: string };
   chartType: ChartType;
-  valueFormat?: 'number' | 'compact' | 'duration-ms' | 'percent';
+  valueFormat?: "number" | "compact" | "duration-ms" | "percent";
   showTableFallback?: boolean;
   credentialId?: string;
   unknown?: Record<string, unknown>;
@@ -206,44 +224,49 @@ export type ChartWidget = {
 
 export type TextWidget = {
   id: string;
-  type: 'text';
+  type: "text";
   markdown: string;
 };
 
 export type ImageWidget = {
   id: string;
-  type: 'image';
+  type: "image";
   url: string;
   alt: string;
   decorative?: boolean;
-  fit: 'contain' | 'cover' | 'original';
+  fit: "contain" | "cover" | "original";
   caption?: string;
 };
 
 export type FilterWidget = {
   id: string;
-  type: 'filter';
+  type: "filter";
   title: string;
   eventCollection: string;
   propertyName: string;
   targetWidgetIds: string[];
   options: string[];
   selected: string[];
-  selectionMode?: 'single' | 'multiple';
+  selectionMode?: "single" | "multiple";
   allowSearch?: boolean;
-  optionSource?: 'manual' | 'query';
+  optionSource?: "manual" | "query";
 };
 
 export type DateRangeWidget = {
   id: string;
-  type: 'date-range';
+  type: "date-range";
   title: string;
   targetWidgetIds: string[];
   timeframe: KeenTimeframe;
   timezone?: string | number;
 };
 
-export type DashboardWidget = ChartWidget | TextWidget | ImageWidget | FilterWidget | DateRangeWidget;
+export type DashboardWidget =
+  | ChartWidget
+  | TextWidget
+  | ImageWidget
+  | FilterWidget
+  | DateRangeWidget;
 
 export type DashboardLayoutItem = {
   i: string;
@@ -279,8 +302,8 @@ export type DashboardDocument = {
 export type EncryptedSecretRecord = {
   id: string;
   workspaceId: string;
-  algorithm: 'AES-GCM' | 'none';
-  kdf: 'PBKDF2' | 'none';
+  algorithm: "AES-GCM" | "none";
+  kdf: "PBKDF2" | "none";
   iterations: number;
   salt: string;
   iv: string;
@@ -311,7 +334,7 @@ export type MaintenanceAuditRecord = {
   action: string;
   scopeHash: string;
   target: string;
-  status: 'submitted' | 'failed';
+  status: "submitted" | "failed";
   createdAt: string;
 };
 
@@ -320,8 +343,14 @@ export type DesktopBridge = {
   approveHosts(hosts: string[]): Promise<void>;
   request(payload: ApiRequestPayload): Promise<ApiBridgeResult>;
   cancel(requestId: string): void;
-  saveText(input: { suggestedName: string; content: string }): Promise<{ saved: boolean; path?: string }>;
-  saveBinary(input: { suggestedName: string; base64: string }): Promise<{ saved: boolean; path?: string }>;
+  saveText(input: {
+    suggestedName: string;
+    content: string;
+  }): Promise<{ saved: boolean; path?: string }>;
+  saveBinary(input: {
+    suggestedName: string;
+    base64: string;
+  }): Promise<{ saved: boolean; path?: string }>;
   openText(): Promise<{ opened: boolean; path?: string; content?: string }>;
   openExternal(url: string): Promise<void>;
 };
