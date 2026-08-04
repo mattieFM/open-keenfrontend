@@ -1,5 +1,9 @@
-import type { CredentialMeta, EncryptedSecretRecord, StorageMode } from '@shared/types';
-import { db } from '../db/database';
+import type {
+  CredentialMeta,
+  EncryptedSecretRecord,
+  StorageMode,
+} from "@shared/types";
+import { db } from "../db/database";
 
 const memorySecrets = new Map<string, string>();
 const encoder = new TextEncoder();
@@ -9,7 +13,7 @@ const DEFAULT_ITERATIONS = 310_000;
 type CryptoBytes = Uint8Array<ArrayBuffer>;
 
 function toBase64(bytes: CryptoBytes): string {
-  let binary = '';
+  let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
@@ -17,61 +21,128 @@ function toBase64(bytes: CryptoBytes): string {
 function fromBase64(value: string): CryptoBytes {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  for (let index = 0; index < binary.length; index += 1)
+    bytes[index] = binary.charCodeAt(index);
   return bytes;
 }
 
-async function deriveKey(passphrase: string, salt: CryptoBytes, iterations: number): Promise<CryptoKey> {
-  const material = await crypto.subtle.importKey('raw', encoder.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
-    material,
-    { name: 'AES-GCM', length: 256 },
+async function deriveKey(
+  passphrase: string,
+  salt: CryptoBytes,
+  iterations: number,
+): Promise<CryptoKey> {
+  const material = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(passphrase),
+    "PBKDF2",
     false,
-    ['encrypt', 'decrypt']
+    ["deriveKey"],
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
   );
 }
 
-export async function storeCredential(meta: CredentialMeta, value: string, mode: StorageMode, passphrase?: string): Promise<void> {
-  if (!value.trim()) throw new Error('Credential value is required.');
+export async function storeCredential(
+  meta: CredentialMeta,
+  value: string,
+  mode: StorageMode,
+  passphrase?: string,
+): Promise<void> {
+  if (!value.trim()) throw new Error("Credential value is required.");
   memorySecrets.set(meta.id, value.trim());
-  if (mode !== 'encrypted') {
-    await db.secrets.delete(meta.id);
+  if (mode === "plaintext") {
+    const record: EncryptedSecretRecord = {
+     id: meta.id,
+      workspaceId: meta.workspaceId,
+     algorithm: "none",
+      kdf: "none",
+      iterations: 0,
+      salt: "",
+     iv: "",
+      ciphertext: value.trim(),
+      createdAt: new Date().toISOString(),
+   };
+   await db.secrets.put(record);
     return;
   }
-  if (!passphrase || passphrase.length < 10) throw new Error('Encrypted storage requires a passphrase of at least 10 characters.');
+ if (mode !== "encrypted") {
+    await db.secrets.delete(meta.id);
+   return;
+ }
+  if (!passphrase || passphrase.length < 10)
+    throw new Error(
+      "Encrypted storage requires a passphrase of at least 10 characters.",
+    );
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(passphrase, salt, DEFAULT_ITERATIONS);
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoder.encode(value.trim())));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      key,
+      encoder.encode(value.trim()),
+    ),
+  );
   const record: EncryptedSecretRecord = {
     id: meta.id,
     workspaceId: meta.workspaceId,
-    algorithm: 'AES-GCM',
-    kdf: 'PBKDF2',
+    algorithm: "AES-GCM",
+    kdf: "PBKDF2",
     iterations: DEFAULT_ITERATIONS,
     salt: toBase64(salt),
     iv: toBase64(iv),
     ciphertext: toBase64(ciphertext),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   };
   await db.secrets.put(record);
 }
 
-export async function unlockCredential(id: string, passphrase: string): Promise<void> {
-  const record = await db.secrets.get(id);
-  if (!record) throw new Error('No encrypted credential is stored for this key.');
+export async function unlockCredential(
+  id: string,
+ passphrase?: string,
+): Promise<void> {
+ const record = await db.secrets.get(id);
+ if (!record)
+    throw new Error("No credential is stored for this key.");
+  if (record.algorithm === "none") {
+    memorySecrets.set(id, record.ciphertext);
+    return;
+  }
+  if (!passphrase)
+    throw new Error("A passphrase is required to unlock this credential.");
   try {
-    const key = await deriveKey(passphrase, fromBase64(record.salt), record.iterations);
-    const plaintext = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: fromBase64(record.iv) },
-      key,
-      fromBase64(record.ciphertext)
+    const key = await deriveKey(
+      passphrase,
+      fromBase64(record.salt),
+      record.iterations,
+   );
+   const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: fromBase64(record.iv) },
+     key,
+     fromBase64(record.ciphertext),
     );
     memorySecrets.set(id, decoder.decode(plaintext));
   } catch {
-    throw new Error('The passphrase is incorrect or the encrypted credential is damaged.');
+    throw new Error(
+     "The passphrase is incorrect or the encrypted credential is damaged.",
+   );
+ }
+}
+export async function restorePlaintextCredentials(): Promise<number> {
+ const all = await db.secrets.toArray();
+  let restored = 0;
+  for (const record of all) {
+   if (record.algorithm === "none") {
+      memorySecrets.set(record.id, record.ciphertext);
+     restored += 1;
+    }
   }
+  return restored;
 }
 
 export function putMemoryCredential(id: string, value: string): void {
@@ -86,9 +157,13 @@ export function hasCredential(id: string): boolean {
   return memorySecrets.has(id);
 }
 
-export function lockWorkspace(workspaceId: string, credentials: CredentialMeta[]): void {
+export function lockWorkspace(
+  workspaceId: string,
+  credentials: CredentialMeta[],
+): void {
   for (const credential of credentials) {
-    if (credential.workspaceId === workspaceId) memorySecrets.delete(credential.id);
+    if (credential.workspaceId === workspaceId)
+      memorySecrets.delete(credential.id);
   }
 }
 

@@ -117,7 +117,7 @@ export function PublicViewerPage(): JSX.Element {
   useEffect(() => { if (hasKey) void loadDashboard(); }, [hasKey, loadDashboard]);
 
   const submitKey = () => { publicBearerKey = keyInput.trim(); setKeyInput(''); setHasKey(Boolean(publicBearerKey)); };
-  const credential = useMemo<CredentialMeta>(() => ({ id: 'public-memory-key', workspaceId: 'public-viewer', label: 'Restricted public key', type: 'access', storageMode: 'memory', hint: 'restricted••••key', createdAt: new Date(0).toISOString() }), []);
+  const credential = useMemo<CredentialMeta>(() => ({ id: 'public-memory-key', workspaceId: 'public-viewer', label: 'Restricted public key', type: 'access', storageMode: 'plaintext', hint: 'restricted••••key', createdAt: new Date(0).toISOString() }), []);
   const executeChart = useCallback<DashboardChartExecutor>(async (widget, runtime) => {
     if (!publicBearerKey) throw new Error('Restricted public key is not available in memory.');
     let path: string;

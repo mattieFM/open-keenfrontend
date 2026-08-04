@@ -36,7 +36,8 @@ export function ConnectPage(): JSX.Element {
   const [dashboardEnabled, setDashboardEnabled] = useState(false);
   const [organizationEnabled, setOrganizationEnabled] = useState(false);
   const [organizationId, setOrganizationId] = useState('');
-  const [storageMode, setStorageMode] = useState<StorageMode>('memory');
+  // Default to persistent unprotected (plaintext) storage for all keys
+  const [storageMode, setStorageMode] = useState<StorageMode>('plaintext');
   const [passphrase, setPassphrase] = useState('');
   const [credentials, setCredentials] = useState<CredentialInput[]>([newCredential('read')]);
   const [safeTest, setSafeTest] = useState(true);
@@ -179,7 +180,7 @@ export function ConnectPage(): JSX.Element {
       analyticsBaseUrl: DEFAULT_ANALYTICS,
       dashboardBaseUrl: DEFAULT_DASHBOARD,
       dashboardServiceEnabled: false,
-      credentials: [{ id: crypto.randomUUID(), workspaceId: id, label: 'Synthetic read key', type: 'read', storageMode: 'memory', hint: 'demo••••data', createdAt: now }],
+      credentials: [{ id: crypto.randomUUID(), workspaceId: id, label: 'Synthetic read key', type: 'read', storageMode: 'plaintext', hint: 'demo••••data', createdAt: now }],
       capabilities: { 'schema.read': 'allowed', 'query.run': 'allowed', 'saved.result.read': 'allowed', 'dataset.read': 'allowed' },
       preferences: { defaultTimezone: 'UTC', queryConcurrency: 4, includeSchemaOnStreamList: false, dashboardPersistence: 'local', autoDashboards: true, autoDashboardTimeframe: 'this_30_days', autoDashboardEventTypeProperty: 'eventType', autoDashboardLastSync: now },
       demo: true,
@@ -268,9 +269,10 @@ export function ConnectPage(): JSX.Element {
             <section className="connection-section">
               <div className="connection-section__title"><span className="section-number">3</span><ShieldCheck size={18} /><h2>Credential storage</h2></div>
               <div className="storage-options">
-                <label className="storage-option"><input type="radio" name="storage" checked={storageMode === 'memory'} onChange={() => setStorageMode('memory')} /><strong>Memory only</strong><span>Recommended. Keys disappear when the application closes or workspace locks.</span></label>
+                <label className="storage-option"><input type="radio" name="storage" checked={storageMode === 'plaintext'} onChange={() => setStorageMode('plaintext')} /><strong>Persistent (unencrypted)</strong><span>Default. Keys stored unencrypted on the local filesystem via IndexedDB. Survives restarts.</span></label>
+               <label className="storage-option"><input type="radio" name="storage" checked={storageMode === 'memory'} onChange={() => setStorageMode('memory')} /><strong>Memory only</strong><span>Keys disappear when the application closes or workspace locks.</span></label>
                 <label className="storage-option"><input type="radio" name="storage" checked={storageMode === 'session'} onChange={() => setStorageMode('session')} /><strong>App session</strong><span>Kept only in process memory for this running application session.</span></label>
-                <label className="storage-option"><input type="radio" name="storage" checked={storageMode === 'encrypted'} onChange={() => setStorageMode('encrypted')} /><strong>Encrypted on device</strong><span>AES-256-GCM in IndexedDB, protected by your passphrase.</span></label>
+               <label className="storage-option"><input type="radio" name="storage" checked={storageMode === 'encrypted'} onChange={() => setStorageMode('encrypted')} /><strong>Encrypted on device</strong><span>AES-256-GCM in IndexedDB, protected by your passphrase.</span></label>
               </div>
               {storageMode === 'encrypted' ? <div style={{ marginTop: 14 }}><Field label="Vault passphrase" required hint="The passphrase and derived key are never stored."><Input type="password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} autoComplete="new-password" /></Field></div> : null}
             </section>

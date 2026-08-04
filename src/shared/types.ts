@@ -1,5 +1,5 @@
 export type CredentialType = 'read' | 'write' | 'master' | 'access' | 'organization';
-export type StorageMode = 'memory' | 'session' | 'encrypted';
+export type StorageMode = 'memory' | 'session' | 'encrypted' | 'plaintext';
 export type CapabilityState = 'unknown' | 'allowed' | 'denied';
 export type RuntimeMode = 'read-only' | 'changes-enabled';
 export type ConfidenceClass =
@@ -279,8 +279,8 @@ export type DashboardDocument = {
 export type EncryptedSecretRecord = {
   id: string;
   workspaceId: string;
-  algorithm: 'AES-GCM';
-  kdf: 'PBKDF2';
+  algorithm: 'AES-GCM' | 'none';
+  kdf: 'PBKDF2' | 'none';
   iterations: number;
   salt: string;
   iv: string;
