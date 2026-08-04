@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { CapabilityState, Operation, RuntimeMode, WorkspaceRecord } from '@shared/types';
 import { db } from './database';
+import { restorePlaintextCredentials } from '../vault/credentialVault';
 
 export type WorkspaceState = {
   initialized: boolean;
@@ -24,10 +25,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   async load() {
     const workspaces = await db.workspaces.orderBy('updatedAt').reverse().toArray();
     const runtimeModes = Object.fromEntries(workspaces.map((workspace) => [workspace.id, 'read-only' as const]));
-    set({
+    await restorePlaintextCredentials();
+   set({
       initialized: true,
       workspaces,
-      runtimeModes,
+     runtimeModes,
       activeWorkspaceId: get().activeWorkspaceId && workspaces.some((item) => item.id === get().activeWorkspaceId)
         ? get().activeWorkspaceId
         : workspaces[0]?.id
