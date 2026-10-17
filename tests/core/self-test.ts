@@ -45,7 +45,7 @@ assert.match(mainSource, /#\/connect/);
 assert.match(mainSource, /import\('\.\/app\/PublicApp'\)/);
 assert.doesNotMatch(privateAppSource, /PublicViewerPage/);
 assert.doesNotMatch(publicAppSource, /from\s+['"][^'"]*(workspaceStore|credentialVault|lib\/db\/database)[^'"]*['"]/);
-assert.match(storeSource, /'read-only' as const/);
+assert.match(storeSource, /(['"])read-only\1\s+as\s+const/);
 assert.match(clientSource, /options\.mutation && this\.runtimeMode !== 'changes-enabled'/);
 assert.match(maintenanceSource, /setSubmitted\(true\)[\s\S]{0,500}client\.(?:deleteFilteredEvents|deleteCollection|deleteProperty|updateEvents)/);
 assert.match(electronMainSource, /ipcMain\.handle\('keen:approveHosts'/);

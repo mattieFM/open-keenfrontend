@@ -52,6 +52,8 @@ import { DashboardSettingsModal } from './DashboardSettingsModal';
 import { WidgetEditorModal } from './WidgetEditorModal';
 import type { KeenDashboardMetadata } from '../../lib/api/DashboardServiceClient';
 
+type PendingSave = { document: DashboardDocument; version: number };
+
 export function DashboardEditorPage(): JSX.Element {
   const { dashboardId } = useParams();
   const { workspace, workspaceId, client, dashboardClient, runtimeMode } = useWorkspaceContext();
@@ -68,20 +70,79 @@ export function DashboardEditorPage(): JSX.Element {
   const [error, setError] = useState<unknown>();
   const [shareOpen, setShareOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [publishingRemote, setPublishingRemote] = useState(false);
   const saveTimer = useRef<number | undefined>(undefined);
+  const pendingSave = useRef<PendingSave>();
+  const saveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const saveVersion = useRef(0);
+  const mounted = useRef(false);
   const navigate = useNavigate();
+
+  const flushSave = useCallback((): Promise<boolean> => {
+    if (saveTimer.current !== undefined) window.clearTimeout(saveTimer.current);
+    saveTimer.current = undefined;
+    const pending = pendingSave.current;
+    if (!pending) return saveQueue.current;
+    pendingSave.current = undefined;
+    if (mounted.current && pending.version === saveVersion.current) {
+      setSaveState('saving');
+      setError(undefined);
+    }
+
+    // Keep writes in order so an older in-flight save cannot overwrite Undo.
+    const saving = saveQueue.current.then(async () => {
+      try {
+        await db.dashboards.put(pending.document);
+        if (mounted.current && pending.version === saveVersion.current) setSaveState('saved');
+        return true;
+      } catch (caught) {
+        if (pending.version === saveVersion.current) {
+          pendingSave.current = pending;
+          if (mounted.current) {
+            setError(caught);
+            setSaveState('failed');
+          }
+        }
+        return false;
+      }
+    });
+    saveQueue.current = saving;
+    return saving;
+  }, []);
+
+  const saveLocally = useCallback((next: DashboardDocument, immediately = false) => {
+    if (saveTimer.current !== undefined) window.clearTimeout(saveTimer.current);
+    pendingSave.current = { document: next, version: ++saveVersion.current };
+    setSaveState('saving');
+    setError(undefined);
+    if (immediately) void flushSave();
+    else saveTimer.current = window.setTimeout(() => { void flushSave(); }, 900);
+  }, [flushSave]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      void flushSave();
+      saveVersion.current += 1;
+    };
+  }, [workspaceId, dashboardId, flushSave]);
 
   useEffect(() => {
     if (!workspaceId || !dashboardId) return;
     let active = true;
+    setSaveState('loading');
+    setHistory([]);
     void (async () => {
+      await saveQueue.current;
+      if (!active) return;
       let loaded = await db.dashboards.get(dashboardId);
       if (loaded?.metadata.remoteOnly && workspace?.dashboardServiceEnabled && dashboardClient && dashboardReadCredentials[0]) {
         try {
           loaded = migrateDashboard((await dashboardClient.get(dashboardId, dashboardReadCredentials[0])).data, workspaceId);
           await db.dashboards.put(loaded);
         } catch (caught) {
-          setError(caught);
+          if (active) setError(caught);
         }
       }
       if (!loaded) loaded = createDashboard(workspaceId);
@@ -89,29 +150,30 @@ export function DashboardEditorPage(): JSX.Element {
         setDocument(loaded);
         setSaveState('saved');
       }
-    })();
+    })().catch((caught) => {
+      if (active) {
+        setError(caught);
+        setSaveState('failed');
+      }
+    });
     return () => { active = false; };
   }, [workspaceId, dashboardId, workspace?.dashboardServiceEnabled]);
-
-  useEffect(() => () => {
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-  }, []);
 
   const change = useCallback((next: DashboardDocument) => {
     if (!document) return;
     setHistory((items) => [...items.slice(-29), document]);
     setDocument(next);
-    setSaveState('saving');
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      void db.dashboards.put(next)
-        .then(() => setSaveState('saved'))
-        .catch((caught) => {
-          setError(caught);
-          setSaveState('failed');
-        });
-    }, 900);
-  }, [document]);
+    saveLocally(next);
+  }, [document, saveLocally]);
+
+  const leaveEditor = async (path: string) => {
+    let saving: Promise<boolean>;
+    do {
+      saving = flushSave();
+      if (!await saving || !mounted.current) return;
+    } while (pendingSave.current || saveQueue.current !== saving);
+    navigate(path);
+  };
 
   const add = (type: DashboardWidget['type']) => {
     if (!document || !workspace) return;
@@ -151,21 +213,25 @@ export function DashboardEditorPage(): JSX.Element {
       setError(new Error('Select a Master Key for dashboard persistence.'));
       return;
     }
-    setSaveState('saving');
+    const version = saveVersion.current;
+    setPublishingRemote(true);
     setError(undefined);
     try {
-      await db.dashboards.put(document);
+      if (!await flushSave()) return;
       await dashboardClient.put(document, metadata(document), credential);
-      const next = touch({
-        ...document,
-        metadata: { ...document.metadata, remoteSyncedAt: new Date().toISOString() }
-      });
-      await db.dashboards.put(next);
-      setDocument(next);
-      setSaveState('saved');
+      if (mounted.current && version === saveVersion.current) {
+        const next = touch({
+          ...document,
+          metadata: { ...document.metadata, remoteSyncedAt: new Date().toISOString() }
+        });
+        setDocument(next);
+        saveLocally(next, true);
+        await flushSave();
+      }
     } catch (caught) {
-      setError(caught);
-      setSaveState('failed');
+      if (mounted.current) setError(caught);
+    } finally {
+      if (mounted.current) setPublishingRemote(false);
     }
   };
 
@@ -174,7 +240,7 @@ export function DashboardEditorPage(): JSX.Element {
     if (!previous) return;
     setHistory((items) => items.slice(0, -1));
     setDocument(previous);
-    void db.dashboards.put(previous);
+    saveLocally(previous, true);
   };
 
   if (!workspace || !workspaceId || !document) {
@@ -190,18 +256,18 @@ export function DashboardEditorPage(): JSX.Element {
       title={document.title}
       description="Build and tune the entire dashboard through guided controls. Drag and resize widgets, or use the keyboard controls. Local autosave remains available in read-only mode."
       actions={<>
-        <Button variant="secondary" onClick={() => navigate(`/w/${workspaceId}/dashboards`)}><ArrowLeft size={15} /> Dashboards</Button>
-        <Button variant="secondary" onClick={() => navigate(`/w/${workspaceId}/dashboards/${document.id}/view`)}><Eye size={15} /> Preview</Button>
+        <Button variant="secondary" onClick={() => void leaveEditor(`/w/${workspaceId}/dashboards`)}><ArrowLeft size={15} /> Dashboards</Button>
+        <Button variant="secondary" onClick={() => void leaveEditor(`/w/${workspaceId}/dashboards/${document.id}/view`)}><Eye size={15} /> Preview</Button>
         <Button variant="secondary" disabled={!history.length} onClick={undo}><Undo2 size={15} /> Undo</Button>
         <Badge tone={saveState === 'saved' ? 'success' : saveState === 'failed' ? 'danger' : 'warning'}>{saveState === 'saved' ? 'Saved locally' : saveState === 'saving' ? 'Saving…' : saveState}</Badge>
         <Button variant="secondary" onClick={() => setAppearanceOpen(true)}><Palette size={15} /> Appearance</Button>
         <Button variant="secondary" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share</Button>
-        {workspace.dashboardServiceEnabled ? <Button onClick={publishRemote} disabled={runtimeMode !== 'changes-enabled' || !writeCredentialId}><CloudUpload size={15} /> Publish remote</Button> : null}
+        {workspace.dashboardServiceEnabled ? <Button onClick={publishRemote} loading={publishingRemote} disabled={runtimeMode !== 'changes-enabled' || !writeCredentialId}><CloudUpload size={15} /> Publish remote</Button> : null}
       </>}
     />
 
     {automatic ? <Callout tone="info" title="Automatically generated dashboard">
-      <span className="inline-icon"><Sparkles size={15} /> This dashboard was created from <strong>{automatic.collection}</strong>{automatic.eventType ? <> for <strong>{automatic.eventType}</strong></> : null}. Editing it is safe and local. Use <strong>Refresh automatic</strong> on the dashboard list only when you intentionally want to rebuild it from the current stream schema.</span>
+      <span className="dashboard-automatic-note"><Sparkles size={15} /> This dashboard was created from <strong>{automatic.collection}</strong>{automatic.eventType ? <> for <strong>{automatic.eventType}</strong></> : null}. Editing it is safe and local. Use <strong>Refresh automatic</strong> on the dashboard list only when you intentionally want to rebuild it from the current stream schema.</span>
     </Callout> : null}
 
     <Card className="dashboard-editor-toolbar">

@@ -286,6 +286,7 @@ export type DashboardDocument = {
   tags: string[];
   widgets: DashboardWidget[];
   layout: DashboardLayoutItem[];
+  responsiveLayouts?: Record<string, DashboardLayoutItem[]>;
   settings: {
     gridGap: number;
     background: string;

@@ -182,7 +182,7 @@ const invariants = {
   publicLazyBootstrap: /import\('\.\/app\/PublicApp'\)/u.test(mainBootstrap),
   publicDoesNotImportVault: !/(workspaceStore|credentialVault|lib\/db\/database)/u.test(publicApp),
   privateDoesNotRoutePublicViewer: !/PublicViewerPage/u.test(privateApp),
-  readOnlyReset: /'read-only' as const/u.test(workspaceStore),
+  readOnlyReset: /(['"])read-only\1\s+as\s+const/u.test(workspaceStore),
   clientMutationGuard: /options\.mutation && this\.runtimeMode !== 'changes-enabled'/u.test(client),
   maintenanceOneAttemptPerPreview: /setSubmitted\(true\)[\s\S]{0,500}client\.(?:deleteFilteredEvents|deleteCollection|deleteProperty|updateEvents)/u.test(maintenance),
   activeWorkspaceRequestCancellation: /activeBridgeRequests/u.test(scheduler) && /window\.keenDesktop\.cancel\(requestId\)/u.test(scheduler),

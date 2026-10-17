@@ -1,19 +1,40 @@
-import { useMemo, useState } from 'react';
-import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid-layout';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Responsive, type Layout, type ResponsiveProps } from 'react-grid-layout';
 import { useQuery } from '@tanstack/react-query';
 import ReactECharts from 'echarts-for-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import DOMPurify from 'dompurify';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BarChart3, CalendarDays, CircleAlert, Copy, Filter, GripVertical, Image as ImageIcon, Maximize2, Minimize2, Pencil, RefreshCw, Search, Table2, Trash2 } from 'lucide-react';
-import type { ChartType, ChartWidget, CredentialMeta, DashboardDocument, DashboardLayoutItem, DashboardWidget, KeenResponse, KeenTimeframe, QueryDraft } from '@shared/types';
+import type { ChartType, ChartWidget, CredentialMeta, DashboardDocument, DashboardWidget, KeenResponse, KeenTimeframe, QueryDraft } from '@shared/types';
 import { Badge, Button, Callout, EmptyState, IconButton, Input, Select } from '../../components/ui';
 import { normalizeResult, supportedCharts } from '../../lib/query/normalizer';
 import { semanticResultToRows } from '../../lib/query/csv';
 import { chartOption } from '../explorer/ResultView';
-import { runtimeQuery, touch } from '../../lib/dashboard/model';
+import { runtimeQuery } from '../../lib/dashboard/model';
+import { DASHBOARD_BREAKPOINTS, DASHBOARD_COLUMNS, dashboardBreakpointForWidth, dashboardLayouts, isDashboardBreakpoint, nudgeDashboardLayout, updateDashboardLayout, type DashboardBreakpoint } from '../../lib/dashboard/layout';
 
-const ResponsiveGrid = WidthProvider(Responsive);
+function MeasuredResponsiveGrid(props: ResponsiveProps): JSX.Element {
+  const container = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const node = container.current;
+    if (!node) return;
+    const measure = (next: number) => { if (next > 0) setWidth(next); };
+    measure(node.getBoundingClientRect().width);
+    const observer = new ResizeObserver((entries) => { measure(entries[0].contentRect.width); });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const breakpoint = dashboardBreakpointForWidth(width);
+  const { onBreakpointChange } = props;
+  // Responsive only reports breakpoint changes, not its initial breakpoint.
+  useLayoutEffect(() => { if (width > 0) onBreakpointChange?.(breakpoint, DASHBOARD_COLUMNS[breakpoint]); }, [width, breakpoint, onBreakpointChange]);
+  // Keep the observed node mounted: replacing a measured placeholder detaches
+  // its observer and leaves the grid frozen at its first width.
+  return <div ref={container} style={{ width: '100%', minWidth: 0 }}>{width > 0 ? <Responsive {...props} width={width} breakpoint={breakpoint} /> : null}</div>;
+}
 export type DashboardChartExecutor = (widget: ChartWidget, runtimeQuery: QueryDraft | undefined, credential?: CredentialMeta) => Promise<KeenResponse<Record<string, unknown>>>;
 
 type Props = {
@@ -30,21 +51,22 @@ type Props = {
 export function DashboardCanvas({ document, editable = false, credential, executeChart, onChange, onEditWidget, onCloneWidget, onRemoveWidget }: Props): JSX.Element {
   const [filterSelections, setFilterSelections] = useState<Record<string, string[]>>({});
   const [dateRanges, setDateRanges] = useState<Record<string, KeenTimeframe | undefined>>({});
-  const layouts = useMemo<Layouts>(() => ({ lg: document.layout.map(toGridLayout) }), [document.layout]);
+  const layouts = useMemo(() => dashboardLayouts(document), [document.layout, document.responsiveLayouts, document.widgets]);
+  const breakpoint = useRef<DashboardBreakpoint>('lg');
 
   const updateLayout = (layout: Layout[]) => {
-    if (editable && onChange) onChange(touch({ ...document, layout: layout.map(fromGridLayout) }));
+    if (!editable || !onChange) return;
+    const next = updateDashboardLayout(document, breakpoint.current, layout);
+    if (next !== document) onChange(next);
   };
   const nudge = (widgetId: string, dx: number, dy: number, dw = 0, dh = 0) => {
-    if (!onChange) return;
-    const next = document.layout.map((item) => item.i === widgetId ? { ...item, x: Math.max(0, Math.min(11, item.x + dx)), y: Math.max(0, item.y + dy), w: Math.max(item.minW ?? 2, Math.min(12 - item.x, item.w + dw)), h: Math.max(item.minH ?? 2, item.h + dh) } : item);
-    onChange(touch({ ...document, layout: next }));
+    updateLayout(nudgeDashboardLayout(layouts[breakpoint.current], breakpoint.current, widgetId, dx, dy, dw, dh));
   };
 
   if (!document.widgets.length) return <EmptyState title="This dashboard is empty" description={editable ? 'Add a chart, text, image, string filter, or date-range widget from the toolbar.' : 'No widgets have been added.'} />;
 
   return <div className={`dashboard-surface ${editable ? 'dashboard-surface--editing' : ''}`} style={{ background: document.settings.background }}>
-    <ResponsiveGrid className="dashboard-grid" layouts={layouts} breakpoints={{ lg: 1100, md: 760, sm: 0 }} cols={{ lg: 12, md: 8, sm: 1 }} rowHeight={54} margin={[document.settings.gridGap, document.settings.gridGap]} containerPadding={[document.settings.gridGap, document.settings.gridGap]} isDraggable={editable} isResizable={editable} draggableHandle=".widget-drag-handle" onLayoutChange={updateLayout} compactType="vertical" preventCollision={false}>
+    <MeasuredResponsiveGrid className="dashboard-grid" layouts={layouts} breakpoints={DASHBOARD_BREAKPOINTS} cols={DASHBOARD_COLUMNS} rowHeight={54} margin={[document.settings.gridGap, document.settings.gridGap]} containerPadding={[document.settings.gridGap, document.settings.gridGap]} isDraggable={editable} isResizable={editable} draggableHandle=".widget-drag-handle" onBreakpointChange={(value) => { if (isDashboardBreakpoint(value)) breakpoint.current = value; }} onDragStop={updateLayout} onResizeStop={updateLayout} compactType={null} preventCollision={false}>
       {document.widgets.map((widget) => <section key={widget.id} className="dashboard-widget" style={{ background: document.settings.tileBackground, borderRadius: document.settings.tileRadius }} aria-label={widgetTitle(widget)}>
         {editable ? <div className="dashboard-widget__chrome">
           <button className="widget-drag-handle" aria-label={`Move ${widgetTitle(widget)} by dragging`} title="Drag widget"><GripVertical size={15} /></button><span>{widget.type}</span>
@@ -54,14 +76,14 @@ export function DashboardCanvas({ document, editable = false, credential, execut
         </div> : null}
         <div className="dashboard-widget__content">{widget.type === 'chart' ? <ChartTile document={document} widget={widget} credential={credential} executeChart={executeChart} filterSelections={filterSelections} dateRanges={dateRanges} /> : widget.type === 'text' ? <TextTile markdown={widget.markdown} /> : widget.type === 'image' ? <ImageTile widget={widget} /> : widget.type === 'filter' ? <FilterTile widget={widget} value={filterSelections[widget.id] ?? widget.selected} onChange={(value) => setFilterSelections((current) => ({ ...current, [widget.id]: value }))} /> : <DateRangeTile widget={widget} value={dateRanges[widget.id]} onChange={(value) => setDateRanges((current) => ({ ...current, [widget.id]: value }))} />}</div>
       </section>)}
-    </ResponsiveGrid>
+    </MeasuredResponsiveGrid>
   </div>;
 }
 
 function ChartTile({ document, widget, credential, executeChart, filterSelections, dateRanges }: { document: DashboardDocument; widget: ChartWidget; credential?: CredentialMeta; executeChart?: DashboardChartExecutor; filterSelections: Record<string, string[]>; dateRanges: Record<string, KeenTimeframe | undefined> }): JSX.Element {
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const query = useMemo(() => runtimeQuery(document, widget, filterSelections, dateRanges), [document, widget, filterSelections, dateRanges]);
-  const state = useQuery<KeenResponse<Record<string, unknown>>>({ queryKey: ['dashboard-chart', document.id, widget.id, document.revision, query, widget.source.kind === 'saved' ? widget.source.name : '', credential?.id], queryFn: () => { if (!executeChart) throw new Error('No chart execution adapter is available.'); return executeChart(widget, query, credential); }, enabled: Boolean(executeChart && credential), retry: false, staleTime: 15_000 });
+  const state = useQuery<KeenResponse<Record<string, unknown>>>({ queryKey: ['dashboard-chart', document.id, widget.id, widget.source, query, credential?.id], queryFn: () => { if (!executeChart) throw new Error('No chart execution adapter is available.'); return executeChart(widget, query, credential); }, enabled: Boolean(executeChart && credential), retry: false, staleTime: 15_000 });
   const semantic = useMemo(() => state.data ? normalizeResult(state.data.data, query ?? (widget.source.kind === 'ad-hoc' ? widget.source.query : { analysis_type: 'count' })) : undefined, [state.data, query, widget.source]);
   const supported = semantic ? supportedCharts(semantic) : [];
   const actualChart = semantic && supported.includes(widget.chartType) ? widget.chartType : (supported[0] ?? 'table');
@@ -70,7 +92,7 @@ function ChartTile({ document, widget, credential, executeChart, filterSelection
   const option = semantic ? { ...chartOption(semantic, actualChart as ChartType, widget.title), color: document.theme.palette } : undefined;
 
   return <div className="chart-tile"><header className="chart-tile__header"><div><h3>{widget.title || 'Untitled chart'}</h3>{widget.subtitle ? <p>{widget.subtitle}</p> : null}</div><div className="row"><Badge tone={widget.source.kind === 'saved' ? 'blue' : 'purple'}>{widget.source.kind === 'saved' ? 'Saved query' : 'Live query'}</Badge>{widget.showTableFallback !== false && semantic ? <div className="chart-view-toggle"><IconButton label="Show chart" disabled={!supported.some((type) => type !== 'table')} onClick={() => setView('chart')}><BarChart3 size={13} /></IconButton><IconButton label="Show table" onClick={() => setView('table')}><Table2 size={13} /></IconButton></div> : null}<IconButton label="Refresh chart" disabled={state.isFetching || !credential} onClick={() => void state.refetch()}><RefreshCw className={state.isFetching ? 'spin' : ''} size={14} /></IconButton></div></header>
-    {!credential ? <Callout tone="warning" title="No read credential">Select a query-capable key above the dashboard.</Callout> : state.error ? <Callout tone="danger" title="Chart request failed">{state.error instanceof Error ? state.error.message : String(state.error)}</Callout> : state.isPending ? <div className="widget-loading"><RefreshCw className="spin" size={20} /><span>Running query…</span></div> : !semantic ? <EmptyState title="No chart data" description="The chart has not returned a response." /> : showTable ? <MiniResultTable rows={rows} /> : semantic.kind === 'scalar' && actualChart === 'metric' ? <div className="dashboard-metric"><strong>{formatValue(semantic.value, widget.valueFormat)}</strong><span>{widget.title}</span></div> : <div className="dashboard-chart" role="img" aria-label={`${widget.title}. ${rows.length} result row${rows.length === 1 ? '' : 's'}.`}><ReactECharts option={option} style={{ width: '100%', height: '100%', minHeight: 210 }} notMerge lazyUpdate /></div>}
+    {!credential ? <Callout tone="warning" title="No read credential">Select a query-capable key above the dashboard.</Callout> : state.error ? <Callout tone="danger" title="Chart request failed">{state.error instanceof Error ? state.error.message : String(state.error)}</Callout> : state.isPending ? <div className="widget-loading"><RefreshCw className="spin" size={20} /><span>Running query…</span></div> : !semantic ? <EmptyState title="No chart data" description="The chart has not returned a response." /> : showTable ? <MiniResultTable rows={rows} /> : semantic.kind === 'scalar' && actualChart === 'metric' ? <div className="dashboard-metric"><strong>{formatValue(semantic.value, widget.valueFormat)}</strong><span>{widget.title}</span></div> : <div className="dashboard-chart" role="img" aria-label={`${widget.title}. ${rows.length} result row${rows.length === 1 ? '' : 's'}.`}><ReactECharts option={option} style={{ width: '100%', height: '100%' }} notMerge lazyUpdate /></div>}
     {widget.source.kind === 'saved' && document.widgets.some((candidate) => (candidate.type === 'filter' || candidate.type === 'date-range') && candidate.targetWidgetIds.includes(widget.id)) ? <div className="widget-note"><CircleAlert size={13} /> Linked saved results cannot be patched by dashboard controls. Detach the query in the widget editor.</div> : null}
   </div>;
 }
@@ -121,5 +143,3 @@ function MiniResultTable({ rows }: { rows: Array<Record<string, unknown>> }): JS
   return <div className="mini-table"><table><caption className="sr-only">Dashboard query result</caption><thead><tr>{headers.map((header) => <th key={header} scope="col">{header}</th>)}</tr></thead><tbody>{rows.slice(0, 100).map((row, index) => <tr key={index}>{headers.map((header) => <td key={header}>{typeof row[header] === 'object' ? JSON.stringify(row[header]) : String(row[header] ?? '')}</td>)}</tr>)}</tbody></table></div>;
 }
 function widgetTitle(widget: DashboardWidget): string { if ('title' in widget && widget.title) return widget.title; if (widget.type === 'text') return 'Text widget'; if (widget.type === 'image') return widget.alt || 'Image widget'; return `${widget.type} widget`; }
-function toGridLayout(item: DashboardLayoutItem): Layout { return { i: item.i, x: item.x, y: item.y, w: item.w, h: item.h, minW: item.minW, minH: item.minH }; }
-function fromGridLayout(item: Layout): DashboardLayoutItem { return { i: item.i, x: item.x, y: item.y, w: item.w, h: item.h, minW: item.minW, minH: item.minH }; }

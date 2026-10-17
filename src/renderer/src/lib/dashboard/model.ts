@@ -50,7 +50,10 @@ export function removeWidget(document: DashboardDocument, id: string): Dashboard
       if (widget.type === 'filter' || widget.type === 'date-range') return { ...widget, targetWidgetIds: widget.targetWidgetIds.filter((target) => target !== id) };
       return widget;
     }),
-    layout: document.layout.filter((item) => item.i !== id)
+    layout: document.layout.filter((item) => item.i !== id),
+    ...(document.responsiveLayouts ? {
+      responsiveLayouts: Object.fromEntries(Object.entries(document.responsiveLayouts).map(([breakpoint, layout]) => [breakpoint, layout.filter((item) => item.i !== id)]))
+    } : {})
   });
 }
 

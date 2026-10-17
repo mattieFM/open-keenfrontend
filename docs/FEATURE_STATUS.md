@@ -26,9 +26,10 @@ Status labels:
 | Saved query known-name flow | implemented | result and optional definition with local name history |
 | Saved query CRUD | implemented | Master list/create/edit/clone/delete and arbitrary metadata |
 | Automatic dashboards | implemented | deterministic overview per stream and dashboard per discovered event type; specialized session overview/start/end templates with bounded live Event/Machine/Game filter choices; customized documents are preserved |
-| Dashboard local persistence | implemented | create/list/view/edit/clone/delete/import/export/autosave/undo plus protected automatic-template refresh |
+| Dashboard local persistence | implemented | create/list/view/edit/clone/delete/import/export/autosave/undo plus protected automatic-template refresh; ordered local saves flush before Preview/Back and retain Undo through pending writes |
+| Dashboard responsive layout | implemented | saved desktop rows and gaps remain aligned; measured canvas reflows without changing the document; deliberate compact/narrow layout edits persist independently |
 | Dashboard widgets | implemented | complete visual chart query editor plus Markdown text, HTTPS image, string filter, and date range; no JSON authoring required |
-| Dashboard keyboard alternatives | implemented | explicit move and resize buttons alongside pointer drag/resize controls |
+| Dashboard keyboard alternatives | implemented | explicit move and resize buttons alongside pointer drag/resize controls; all edits stay within the active grid and resolve collisions without pulling aligned rows into gaps |
 | Keen dashboard service | adapter | source-observed routes and metadata header behind opt-in |
 | Public sharing | implemented | dedicated Access Key creation, allow-list/filter policy, fragment viewer, revoke/private flow |
 | Access Key manager | implemented | list/search/raw create/edit/templates/revoke/unrevoke/delete |
@@ -40,3 +41,5 @@ Status labels:
 | Organization admin | not enabled | credential type reserved; requires separate documented Organization API client |
 | Optional relay | implemented | separately deployable and allow-listed |
 | Account login/team/billing | out of scope | no project-key equivalent |
+
+Dashboard layout and local persistence validation: [2026-10-17 revalidation report](REVALIDATION_2026-10-17.md).
